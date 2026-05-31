@@ -1,0 +1,31 @@
+name: pre-commit
+
+# Each consolidated sub-project keeps its own .pre-commit-config.yaml; this
+# runs pre-commit independently inside each one so a change in any project is
+# linted with that project's own configuration.
+on:
+  pull_request:
+  push:
+  workflow_dispatch:
+
+jobs:
+  pre-commit:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        project:
+          - core
+          - extensions
+          - example-bank
+          - docker
+          - deployment
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install pre-commit
+      - name: Run pre-commit for ${{ matrix.project }}
+        working-directory: ${{ matrix.project }}
+        run: pre-commit run --all-files --show-diff-on-failure

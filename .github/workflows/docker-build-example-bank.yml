@@ -1,0 +1,76 @@
+name: Build & Push Example Bank Dockers
+
+# Triggered only when example-bank source or this workflow change. The image
+# tag is the g2p-bridge repository ref (branch name or git tag).
+#
+# Uses each service's Dockerfile-git (copied as-is), which builds from the local
+# service source plus GitHub-hosted deps. The build context is the service
+# folder, matching the original Dockerfile-git expectations.
+on:
+  push:
+    branches:
+      - "**"
+    tags:
+      - "**"
+    paths:
+      - 'example-bank/**'
+      - '.github/workflows/docker-build-example-bank.yml'
+  workflow_dispatch:
+
+jobs:
+  docker-build:
+    runs-on: ubuntu-latest
+    name: Docker - ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: example-bank-api
+            image: openg2p/openg2p-g2p-bridge-example-bank-api
+            context: example-bank/openg2p-example-bank-api
+          - name: example-bank-celery-beat-producers
+            image: openg2p/openg2p-example-bank-celery-beat-producers
+            context: example-bank/openg2p-example-bank-celery-beat-producers
+          - name: example-bank-celery-workers
+            image: openg2p/openg2p-example-bank-celery-workers
+            context: example-bank/openg2p-example-bank-celery-workers
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Docker Login
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.docker_hub_actor }}
+          password: ${{ secrets.docker_hub_token }}
+
+      - name: Derive image tag from repo ref
+        id: meta
+        shell: bash
+        run: |
+          echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          echo "created=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push - ${{ matrix.name }}
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.context }}/Dockerfile-git
+          push: true
+          platforms: linux/amd64
+          tags: ${{ matrix.image }}:${{ steps.meta.outputs.tag }}
+          labels: |
+            org.opencontainers.image.created=${{ steps.meta.outputs.created }}
+            org.opencontainers.image.authors=${{ github.repository_owner }}
+            org.opencontainers.image.source=${{ github.repository }}@${{ github.sha }}
+            org.opencontainers.image.version=${{ steps.meta.outputs.tag }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.vendor=${{ github.repository_owner }}
+            org.opencontainers.image.title=${{ matrix.image }}
+            org.opencontainers.image.description=Example Bank service image
+            org.openg2p.service.name=${{ matrix.name }}

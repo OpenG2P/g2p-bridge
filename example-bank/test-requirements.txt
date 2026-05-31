@@ -1,0 +1,3 @@
+pytest-cov
+git+https://github.com/openg2p/openg2p-fastapi-common@v1.1.1#subdirectory=openg2p-fastapi-common
+git+https://github.com/openg2p/openg2p-fastapi-common@v1.1.1#subdirectory=openg2p-fastapi-auth

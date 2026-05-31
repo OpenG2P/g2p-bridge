@@ -1,0 +1,21 @@
+dependencies:
+- name: common
+  repository: oci://registry-1.docker.io/bitnamicharts
+  version: 2.31.4
+- name: postgresql
+  repository: oci://registry-1.docker.io/bitnamicharts
+  version: 15.5.38
+- name: redis
+  repository: oci://registry-1.docker.io/bitnamicharts
+  version: 20.13.4
+- name: openg2p-g2p-bridge-example-bank-api
+  repository: ""
+  version: "1.1"
+- name: openg2p-g2p-bridge-example-bank-celery-beat-producers
+  repository: ""
+  version: "1.1"
+- name: openg2p-g2p-bridge-example-bank-celery-workers
+  repository: ""
+  version: "1.1"
+digest: sha256:74a8cd3cee6b22e8f53eb4b77f1919efa5b093848b09965aaf4b46a7d500bb10
+generated: "2025-08-19T17:42:38.872139+05:30"

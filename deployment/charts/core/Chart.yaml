@@ -1,0 +1,28 @@
+apiVersion: v2
+name: openg2p-g2p-bridge
+description: Helm chart for OpenG2P G2P Bridge
+type: application
+version: 3.0.0-develop
+dependencies:
+- name: common
+  repository: https://openg2p.github.io/openg2p-helm
+  version: 2.30.0
+- name: postgres-init
+  version: 0.0.0-develop
+  repository: https://openg2p.github.io/openg2p-helm
+  condition: postgres-init.enabled
+- name: redis
+  version: 19.6.4
+  repository: https://openg2p.github.io/openg2p-helm
+  condition: redis.enabled
+icon: https://openg2p.github.io/openg2p-helm/openg2p-logo.png
+keywords:
+  - openg2p-g2p-bridge
+  - g2p-bridge
+maintainers:
+  - email: info@openg2p.org
+    name: OpenG2P
+icon: https://openg2p.github.io/openg2p-helm/openg2p-logo.png
+annotations:
+  catalog.cattle.io/display-name: "OpenG2P G2P Bridge"
+  openg2p.org/add-to-rancher: ""

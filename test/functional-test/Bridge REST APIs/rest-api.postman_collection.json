@@ -1,0 +1,825 @@
+{
+    "collection": {
+        "info": {
+            "_postman_id": "5058ab44-29e8-4733-b34a-4ab05d8125e0",
+            "name": "Bridge REST API",
+            "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+            "updatedAt": "2024-10-03T07:33:02.000Z",
+            "createdAt": "2024-10-01T09:36:28.000Z",
+            "lastUpdatedBy": "34008469",
+            "uid": "34008469-5058ab44-29e8-4733-b34a-4ab05d8125e0"
+        },
+        "item": [
+            {
+                "name": "Create envelope - Happy path",
+                "event": [
+                    {
+                        "listen": "test",
+                        "script": {
+                            "id": "36ae2293-5d33-4403-9002-37b3fea2f823",
+                            "exec": [
+                                "pm.test(\"Create Envelope Happy Path Test\", function () {",
+                                "    var jsonData = pm.response.json();",
+                                "    pm.expect(jsonData.header.status, \"Test has failed\").to.eql(\"succ\");",
+                                "});",
+                                "",
+                                "pm.test(\"Extract and set ENVELOPE_ID\", function () {",
+                                "    var jsonData = pm.response.json();",
+                                "    var envelopeId = '\"' + jsonData.message.disbursement_envelope_id + '\"';",
+                                "",
+                                "    // Set the environment variable",
+                                "    pm.environment.set(\"ENVELOPE_ID\", envelopeId);",
+                                "",
+                                "    // Optional: Log the envelope ID to the console for verification",
+                                "    console.log(\"ENVELOPE_ID has been set to: \" + envelopeId);",
+                                "});"
+                            ],
+                            "type": "text/javascript",
+                            "packages": {}
+                        }
+                    }
+                ],
+                "id": "112bfe32-ff2f-4e64-b3a1-b64023468802",
+                "protocolProfileBehavior": {
+                    "disableBodyPruning": true
+                },
+                "request": {
+                    "method": "POST",
+                    "header": [],
+                    "body": {
+                        "mode": "raw",
+                        "raw": "{\n  \"signature\": \"string\",\n  \"header\": {\n    \"version\": \"1.0.0\",\n    \"message_id\": \"string\",\n    \"message_ts\": \"string\",\n    \"action\": \"string\",\n    \"sender_id\": \"string\",\n    \"sender_uri\": \"\",\n    \"receiver_id\": \"\",\n    \"total_count\": 0,\n    \"is_msg_encrypted\": false,\n    \"meta\": \"string\"\n  },\n  \"message\": {\n    \"benefit_program_mnemonic\": {{PROGRAM_MNEMONIC}},\n    \"disbursement_frequency\": \"OnDemand\",\n    \"cycle_code_mnemonic\": \"AUG\",\n    \"number_of_beneficiaries\": 5,\n    \"number_of_disbursements\": 5,\n    \"total_disbursement_amount\": 5000,\n    \"disbursement_currency_code\": \"USD\",\n    \"disbursement_schedule_date\": {{DISBURSEMENT_SCHEDULE_DATE}}\n  }\n}",
+                        "options": {
+                            "raw": {
+                                "language": "json"
+                            }
+                        }
+                    },
+                    "url": {
+                        "raw": "{{BASE_URL}}/g2p-bridge/create_disbursement_envelope",
+                        "host": [
+                            "{{BASE_URL}}"
+                        ],
+                        "path": [
+                            "g2p-bridge",
+                            "create_disbursement_envelope"
+                        ]
+                    }
+                },
+                "response": [],
+                "uid": "34008469-112bfe32-ff2f-4e64-b3a1-b64023468802"
+            },
+            {
+                "name": "Create envelope - with non-existent Program Mnemonic",
+                "event": [
+                    {
+                        "listen": "test",
+                        "script": {
+                            "id": "36ae2293-5d33-4403-9002-37b3fea2f823",
+                            "exec": [
+                                "pm.test(\"Create envelope - with non-existent Program Mnemonic\", function () {",
+                                "    var jsonData = pm.response.json();",
+                                "    pm.expect(jsonData.header.status, \"Test has failed\").to.eql(\"rjct\");",
+                                "});"
+                            ],
+                            "type": "text/javascript",
+                            "packages": {}
+                        }
+                    }
+                ],
+                "id": "a6d67765-5bad-49ff-b991-27482d2c8030",
+                "protocolProfileBehavior": {
+                    "disableBodyPruning": true
+                },
+                "request": {
+                    "method": "POST",
+                    "header": [],
+                    "body": {
+                        "mode": "raw",
+                        "raw": "{\n  \"signature\": \"string\",\n  \"header\": {\n    \"version\": \"1.0.0\",\n    \"message_id\": \"string\",\n    \"message_ts\": \"string\",\n    \"action\": \"string\",\n    \"sender_id\": \"string\",\n    \"sender_uri\": \"\",\n    \"receiver_id\": \"\",\n    \"total_count\": 0,\n    \"is_msg_encrypted\": false,\n    \"meta\": \"string\"\n  },\n  \"message\": {\n    \"benefit_program_mnemonic\": {{INVALID_PROGRAM_MNEMONIC}},\n    \"disbursement_frequency\": \"OnDemand\",\n    \"cycle_code_mnemonic\": \"AUG\",\n    \"number_of_beneficiaries\": 3,\n    \"number_of_disbursements\": 3,\n    \"total_disbursement_amount\": 3000,\n    \"disbursement_currency_code\": \"USD\",\n    \"disbursement_schedule_date\": {{DISBURSEMENT_SCHEDULE_DATE}}\n  }\n}",
+                        "options": {
+                            "raw": {
+                                "language": "json"
+                            }
+                        }
+                    },
+                    "url": {
+                        "raw": "{{BASE_URL}}/g2p-bridge/create_disbursement_envelope",
+                        "host": [
+                            "{{BASE_URL}}"
+                        ],
+                        "path": [
+                            "g2p-bridge",
+                            "create_disbursement_envelope"
+                        ]
+                    }
+                },
+                "response": [],
+                "uid": "34008469-a6d67765-5bad-49ff-b991-27482d2c8030"
+            },
+            {
+                "name": "Create envelope - with schedule date in the past",
+                "event": [
+                    {
+                        "listen": "test",
+                        "script": {
+                            "id": "36ae2293-5d33-4403-9002-37b3fea2f823",
+                            "exec": [
+                                "pm.test(\"Create envelope - with schedule date in the past\", function () {",
+                                "    var jsonData = pm.response.json();",
+                                "    pm.expect(jsonData.header.status, \"Test has failed\").to.eql(\"rjct\");",
+                                "});"
+                            ],
+                            "type": "text/javascript",
+                            "packages": {}
+                        }
+                    }
+                ],
+                "id": "9ea908e5-855e-4c3a-9515-a6493431e9b6",
+                "protocolProfileBehavior": {
+                    "disableBodyPruning": true
+                },
+                "request": {
+                    "method": "POST",
+                    "header": [],
+                    "body": {
+                        "mode": "raw",
+                        "raw": "{\n  \"signature\": \"string\",\n  \"header\": {\n    \"version\": \"1.0.0\",\n    \"message_id\": \"string\",\n    \"message_ts\": \"string\",\n    \"action\": \"string\",\n    \"sender_id\": \"string\",\n    \"sender_uri\": \"\",\n    \"receiver_id\": \"\",\n    \"total_count\": 0,\n    \"is_msg_encrypted\": false,\n    \"meta\": \"string\"\n  },\n  \"message\": {\n    \"benefit_program_mnemonic\": {{INVALID_PROGRAM_MNEMONIC}},\n    \"disbursement_frequency\": \"OnDemand\",\n    \"cycle_code_mnemonic\": \"AUG\",\n    \"number_of_beneficiaries\": 3,\n    \"number_of_disbursements\": 3,\n    \"total_disbursement_amount\": 3000,\n    \"disbursement_currency_code\": \"USD\",\n    \"disbursement_schedule_date\": {{INVALID_DISBURSEMENT_SCHEDULE_DATE}}\n  }\n}",
+                        "options": {
+                            "raw": {
+                                "language": "json"
+                            }
+                        }
+                    },
+                    "url": {
+                        "raw": "{{BASE_URL}}/g2p-bridge/create_disbursement_envelope",
+                        "host": [
+                            "{{BASE_URL}}"
+                        ],
+                        "path": [
+                            "g2p-bridge",
+                            "create_disbursement_envelope"
+                        ]
+                    }
+                },
+                "response": [],
+                "uid": "34008469-9ea908e5-855e-4c3a-9515-a6493431e9b6"
+            },
+            {
+                "name": "Create Disbursements - Happy path",
+                "event": [
+                    {
+                        "listen": "test",
+                        "script": {
+                            "id": "36ae2293-5d33-4403-9002-37b3fea2f823",
+                            "exec": [
+                                "pm.test(\"Create Disbursements - Happy path\", function () {",
+                                "    var jsonData = pm.response.json();",
+                                "    pm.expect(jsonData.header.status, \"Test has failed\").to.eql(\"succ\");",
+                                "});",
+                                "",
+                                "pm.test(\"Extract and set DISBURSEMENT_TO_CANCEL\", function () {",
+                                "    var jsonData = pm.response.json();",
+                                "    var disbursementId = '\"' + jsonData.message[0].disbursement_id + '\"'; // Add double quotes",
+                                "",
+                                "    // Set the environment variable",
+                                "    pm.environment.set(\"DISBURSEMENT_TO_CANCEL\", disbursementId);",
+                                "",
+                                "    // Optional: Log the disbursement ID to the console for verification",
+                                "    console.log(\"DISBURSEMENT_TO_CANCEL has been set to: \" + disbursementId);",
+                                "});",
+                                "",
+                                "pm.test(\"Extract and set DISBURSEMENT_TO_CANCEL_2\", function () {",
+                                "    var jsonData = pm.response.json();",
+                                "    var disbursementId = '\"' + jsonData.message[1].disbursement_id + '\"'; // Add double quotes",
+                                "",
+                                "    // Set the environment variable",
+                                "    pm.environment.set(\"DISBURSEMENT_TO_CANCEL_2\", disbursementId);",
+                                "",
+                                "    // Optional: Log the disbursement ID to the console for verification",
+                                "    console.log(\"DISBURSEMENT_TO_CANCEL_2 has been set to: \" + disbursementId);",
+                                "});",
+                                ""
+                            ],
+                            "type": "text/javascript",
+                            "packages": {}
+                        }
+                    }
+                ],
+                "id": "c3bd9d6b-fc29-4e06-b5d6-478ec04624a3",
+                "protocolProfileBehavior": {
+                    "disableBodyPruning": true
+                },
+                "request": {
+                    "method": "POST",
+                    "header": [],
+                    "body": {
+                        "mode": "raw",
+                        "raw": "{\n    \"signature\": \"string\",\n    \"header\": {\n        \"version\": \"1.0.0\",\n        \"message_id\": \"string\",\n        \"message_ts\": \"string\",\n        \"action\": \"string\",\n        \"sender_id\": \"string\",\n        \"sender_uri\": \"\",\n        \"receiver_id\": \"\",\n        \"total_count\": 0,\n        \"is_msg_encrypted\": false,\n        \"meta\": \"string\"\n    },\n    \"message\": [\n        {\n            \"disbursement_envelope_id\": {{ENVELOPE_ID}},\n            \"beneficiary_id\": \"123456\",\n            \"beneficiary_name\": \"Beneficiary 01\",\n            \"disbursement_amount\": 1000,\n            \"narrative\": \"MOW Food Subsidy Aug 7th\"\n        },\n        {\n            \"disbursement_envelope_id\": {{ENVELOPE_ID}},\n            \"beneficiary_id\": \"34567\",\n            \"beneficiary_name\": \"Beneficiary 02\",\n            \"disbursement_amount\": 1000,\n            \"narrative\": \"MOW Food Subsidy Aug 7th\"\n        }\n    ]\n}\n",
+                        "options": {
+                            "raw": {
+                                "language": "json"
+                            }
+                        }
+                    },
+                    "url": {
+                        "raw": "{{BASE_URL}}/g2p-bridge/create_disbursements",
+                        "host": [
+                            "{{BASE_URL}}"
+                        ],
+                        "path": [
+                            "g2p-bridge",
+                            "create_disbursements"
+                        ]
+                    }
+                },
+                "response": [],
+                "uid": "34008469-c3bd9d6b-fc29-4e06-b5d6-478ec04624a3"
+            },
+            {
+                "name": "Create Disbursements - with duplicate beneficiary ID",
+                "event": [
+                    {
+                        "listen": "test",
+                        "script": {
+                            "id": "36ae2293-5d33-4403-9002-37b3fea2f823",
+                            "exec": [
+                                "pm.test(\"Create Disbursements - Happy path\", function () {",
+                                "    var jsonData = pm.response.json();",
+                                "    pm.expect(jsonData.header.status, \"Test has failed\").to.eql(\"succ\");",
+                                "});",
+                                ""
+                            ],
+                            "type": "text/javascript",
+                            "packages": {}
+                        }
+                    }
+                ],
+                "id": "dea4fa24-cb4a-466a-8dda-d8895384fde6",
+                "protocolProfileBehavior": {
+                    "disableBodyPruning": true
+                },
+                "request": {
+                    "method": "POST",
+                    "header": [],
+                    "body": {
+                        "mode": "raw",
+                        "raw": "{\n    \"signature\": \"string\",\n    \"header\": {\n        \"version\": \"1.0.0\",\n        \"message_id\": \"string\",\n        \"message_ts\": \"string\",\n        \"action\": \"string\",\n        \"sender_id\": \"string\",\n        \"sender_uri\": \"\",\n        \"receiver_id\": \"\",\n        \"total_count\": 0,\n        \"is_msg_encrypted\": false,\n        \"meta\": \"string\"\n    },\n    \"message\": [\n        {\n            \"disbursement_envelope_id\": {{ENVELOPE_ID}},\n            \"beneficiary_id\": \"34567\",\n            \"beneficiary_name\": \"Beneficiary 02\",\n            \"disbursement_amount\": 1000,\n            \"narrative\": \"MOW Food Subsidy Aug 7th\"\n        }\n    ]\n}\n",
+                        "options": {
+                            "raw": {
+                                "language": "json"
+                            }
+                        }
+                    },
+                    "url": {
+                        "raw": "{{BASE_URL}}/g2p-bridge/create_disbursements",
+                        "host": [
+                            "{{BASE_URL}}"
+                        ],
+                        "path": [
+                            "g2p-bridge",
+                            "create_disbursements"
+                        ]
+                    }
+                },
+                "response": [],
+                "uid": "34008469-dea4fa24-cb4a-466a-8dda-d8895384fde6"
+            },
+            {
+                "name": "Create Disbursements - with invalid envelope ID",
+                "event": [
+                    {
+                        "listen": "test",
+                        "script": {
+                            "id": "36ae2293-5d33-4403-9002-37b3fea2f823",
+                            "exec": [
+                                "pm.test(\"Create Disbursements - with invalid envelope ID\", function () {",
+                                "    var jsonData = pm.response.json();",
+                                "    pm.expect(jsonData.header.status, \"Test has failed\").to.eql(\"rjct\");",
+                                "});",
+                                ""
+                            ],
+                            "type": "text/javascript",
+                            "packages": {}
+                        }
+                    }
+                ],
+                "id": "b8acf07f-4d95-4e97-b058-2177e630982b",
+                "protocolProfileBehavior": {
+                    "disableBodyPruning": true
+                },
+                "request": {
+                    "method": "POST",
+                    "header": [],
+                    "body": {
+                        "mode": "raw",
+                        "raw": "{\n    \"signature\": \"string\",\n    \"header\": {\n        \"version\": \"1.0.0\",\n        \"message_id\": \"string\",\n        \"message_ts\": \"string\",\n        \"action\": \"string\",\n        \"sender_id\": \"string\",\n        \"sender_uri\": \"\",\n        \"receiver_id\": \"\",\n        \"total_count\": 0,\n        \"is_msg_encrypted\": false,\n        \"meta\": \"string\"\n    },\n    \"message\": [\n        {\n            \"disbursement_envelope_id\": {{INVALID_ENVELOPE_ID}},\n            \"beneficiary_id\": \"656434\",\n            \"beneficiary_name\": \"Beneficiary 02\",\n            \"disbursement_amount\": 1000,\n            \"narrative\": \"MOW Food Subsidy Aug 7th\"\n        }\n    ]\n}",
+                        "options": {
+                            "raw": {
+                                "language": "json"
+                            }
+                        }
+                    },
+                    "url": {
+                        "raw": "{{BASE_URL}}/g2p-bridge/create_disbursements",
+                        "host": [
+                            "{{BASE_URL}}"
+                        ],
+                        "path": [
+                            "g2p-bridge",
+                            "create_disbursements"
+                        ]
+                    }
+                },
+                "response": [],
+                "uid": "34008469-b8acf07f-4d95-4e97-b058-2177e630982b"
+            },
+            {
+                "name": "Create Disbursements - with no beneficiary ID",
+                "event": [
+                    {
+                        "listen": "test",
+                        "script": {
+                            "id": "36ae2293-5d33-4403-9002-37b3fea2f823",
+                            "exec": [
+                                "pm.test(\"Create Disbursements - with no beneficiary ID\", function () {",
+                                "    var jsonData = pm.response.json();",
+                                "    pm.expect(jsonData.header.status, \"Test has failed\").to.eql(\"succ\");",
+                                "});",
+                                ""
+                            ],
+                            "type": "text/javascript",
+                            "packages": {}
+                        }
+                    }
+                ],
+                "id": "dc759ea6-d15d-4178-a774-aaa60f991cff",
+                "protocolProfileBehavior": {
+                    "disableBodyPruning": true
+                },
+                "request": {
+                    "method": "POST",
+                    "header": [],
+                    "body": {
+                        "mode": "raw",
+                        "raw": "{\n    \"signature\": \"string\",\n    \"header\": {\n        \"version\": \"1.0.0\",\n        \"message_id\": \"string\",\n        \"message_ts\": \"string\",\n        \"action\": \"string\",\n        \"sender_id\": \"string\",\n        \"sender_uri\": \"\",\n        \"receiver_id\": \"\",\n        \"total_count\": 0,\n        \"is_msg_encrypted\": false,\n        \"meta\": \"string\"\n    },\n    \"message\": [\n        {\n            \"disbursement_envelope_id\": {{ENVELOPE_ID}},\n            \"beneficiary_id\": \"\",\n            \"beneficiary_name\": \"Beneficiary 04\",\n            \"disbursement_amount\": 1000,\n            \"narrative\": \"MOW Food Subsidy Aug 7th\"\n        }\n    ]\n}",
+                        "options": {
+                            "raw": {
+                                "language": "json"
+                            }
+                        }
+                    },
+                    "url": {
+                        "raw": "{{BASE_URL}}/g2p-bridge/create_disbursements",
+                        "host": [
+                            "{{BASE_URL}}"
+                        ],
+                        "path": [
+                            "g2p-bridge",
+                            "create_disbursements"
+                        ]
+                    }
+                },
+                "response": [],
+                "uid": "34008469-dc759ea6-d15d-4178-a774-aaa60f991cff"
+            },
+            {
+                "name": "Create Disbursements - with negative disbursal amount",
+                "event": [
+                    {
+                        "listen": "test",
+                        "script": {
+                            "id": "36ae2293-5d33-4403-9002-37b3fea2f823",
+                            "exec": [
+                                "pm.test(\"Create Disbursements - with negative disbursal amount\", function () {",
+                                "    var jsonData = pm.response.json();",
+                                "    pm.expect(jsonData.header.status, \"Test has failed\").to.eql(\"rjct\");",
+                                "});",
+                                ""
+                            ],
+                            "type": "text/javascript",
+                            "packages": {}
+                        }
+                    }
+                ],
+                "id": "d9fcba4d-0228-47a9-a071-1d4666bbfaed",
+                "protocolProfileBehavior": {
+                    "disableBodyPruning": true
+                },
+                "request": {
+                    "method": "POST",
+                    "header": [],
+                    "body": {
+                        "mode": "raw",
+                        "raw": "{\n    \"signature\": \"string\",\n    \"header\": {\n        \"version\": \"1.0.0\",\n        \"message_id\": \"string\",\n        \"message_ts\": \"string\",\n        \"action\": \"string\",\n        \"sender_id\": \"string\",\n        \"sender_uri\": \"\",\n        \"receiver_id\": \"\",\n        \"total_count\": 0,\n        \"is_msg_encrypted\": false,\n        \"meta\": \"string\"\n    },\n    \"message\": [\n        {\n            \"disbursement_envelope_id\": {{ENVELOPE_ID}},\n            \"beneficiary_id\": \"\",\n            \"beneficiary_name\": \"Beneficiary 04\",\n            \"disbursement_amount\": -1000,\n            \"narrative\": \"MOW Food Subsidy Aug 7th\"\n        }\n    ]\n}",
+                        "options": {
+                            "raw": {
+                                "language": "json"
+                            }
+                        }
+                    },
+                    "url": {
+                        "raw": "{{BASE_URL}}/g2p-bridge/create_disbursements",
+                        "host": [
+                            "{{BASE_URL}}"
+                        ],
+                        "path": [
+                            "g2p-bridge",
+                            "create_disbursements"
+                        ]
+                    }
+                },
+                "response": [],
+                "uid": "34008469-d9fcba4d-0228-47a9-a071-1d4666bbfaed"
+            },
+            {
+                "name": "Create Disbursements - where the total of all disbursements cross the sum specified in the envelope",
+                "event": [
+                    {
+                        "listen": "test",
+                        "script": {
+                            "id": "36ae2293-5d33-4403-9002-37b3fea2f823",
+                            "exec": [
+                                "pm.test(\"Create Disbursements - where the total of all disbursements cross the sum specified in the envelope \", function () {",
+                                "    var jsonData = pm.response.json();",
+                                "    pm.expect(jsonData.header.status, \"Test has failed\").to.eql(\"rjct\");",
+                                "});",
+                                ""
+                            ],
+                            "type": "text/javascript",
+                            "packages": {}
+                        }
+                    }
+                ],
+                "id": "00b2be55-6dca-46e4-8e5b-d2393e3c49c1",
+                "protocolProfileBehavior": {
+                    "disableBodyPruning": true
+                },
+                "request": {
+                    "method": "POST",
+                    "header": [],
+                    "body": {
+                        "mode": "raw",
+                        "raw": "{\n    \"signature\": \"string\",\n    \"header\": {\n        \"version\": \"1.0.0\",\n        \"message_id\": \"string\",\n        \"message_ts\": \"string\",\n        \"action\": \"string\",\n        \"sender_id\": \"string\",\n        \"sender_uri\": \"\",\n        \"receiver_id\": \"\",\n        \"total_count\": 0,\n        \"is_msg_encrypted\": false,\n        \"meta\": \"string\"\n    },\n    \"message\": [\n        {\n            \"disbursement_envelope_id\": {{ENVELOPE_ID}},\n            \"beneficiary_id\": \"\",\n            \"beneficiary_name\": \"Beneficiary 04\",\n            \"disbursement_amount\": 10000,\n            \"narrative\": \"MOW Food Subsidy Aug 7th\"\n        }\n    ]\n}",
+                        "options": {
+                            "raw": {
+                                "language": "json"
+                            }
+                        }
+                    },
+                    "url": {
+                        "raw": "{{BASE_URL}}/g2p-bridge/create_disbursements",
+                        "host": [
+                            "{{BASE_URL}}"
+                        ],
+                        "path": [
+                            "g2p-bridge",
+                            "create_disbursements"
+                        ]
+                    }
+                },
+                "response": [],
+                "uid": "34008469-00b2be55-6dca-46e4-8e5b-d2393e3c49c1"
+            },
+            {
+                "name": "Create Disbursements - where number of disbursements cross the number specified in the envelope",
+                "event": [
+                    {
+                        "listen": "test",
+                        "script": {
+                            "id": "36ae2293-5d33-4403-9002-37b3fea2f823",
+                            "exec": [
+                                "pm.test(\"Create Disbursements - where number of disbursements cross the number specified in the envelope\", function () {",
+                                "    var jsonData = pm.response.json();",
+                                "    pm.expect(jsonData.header.status, \"Test has failed\").to.eql(\"rjct\");",
+                                "});",
+                                ""
+                            ],
+                            "type": "text/javascript",
+                            "packages": {}
+                        }
+                    }
+                ],
+                "id": "b32a3de2-5398-45a7-826f-b67163dc44e9",
+                "protocolProfileBehavior": {
+                    "disableBodyPruning": true
+                },
+                "request": {
+                    "method": "POST",
+                    "header": [],
+                    "body": {
+                        "mode": "raw",
+                        "raw": "{\n    \"signature\": \"string\",\n    \"header\": {\n        \"version\": \"1.0.0\",\n        \"message_id\": \"string\",\n        \"message_ts\": \"string\",\n        \"action\": \"string\",\n        \"sender_id\": \"string\",\n        \"sender_uri\": \"\",\n        \"receiver_id\": \"\",\n        \"total_count\": 0,\n        \"is_msg_encrypted\": false,\n        \"meta\": \"string\"\n    },\n    \"message\": [\n        {\n            \"disbursement_envelope_id\": {{ENVELOPE_ID}},\n            \"beneficiary_id\": \"\",\n            \"beneficiary_name\": \"Beneficiary 04\",\n            \"disbursement_amount\": 1000,\n            \"narrative\": \"MOW Food Subsidy Aug 7th\"\n        },\n        {\n            \"disbursement_envelope_id\": {{ENVELOPE_ID}},\n            \"beneficiary_id\": \"\",\n            \"beneficiary_name\": \"Beneficiary 05\",\n            \"disbursement_amount\": 1000,\n            \"narrative\": \"MOW Food Subsidy Aug 7th\"\n        }\n    ]\n}",
+                        "options": {
+                            "raw": {
+                                "language": "json"
+                            }
+                        }
+                    },
+                    "url": {
+                        "raw": "{{BASE_URL}}/g2p-bridge/create_disbursements",
+                        "host": [
+                            "{{BASE_URL}}"
+                        ],
+                        "path": [
+                            "g2p-bridge",
+                            "create_disbursements"
+                        ]
+                    }
+                },
+                "response": [],
+                "uid": "34008469-b32a3de2-5398-45a7-826f-b67163dc44e9"
+            },
+            {
+                "name": "Cancel Envelope - Happy path",
+                "event": [
+                    {
+                        "listen": "test",
+                        "script": {
+                            "id": "36ae2293-5d33-4403-9002-37b3fea2f823",
+                            "exec": [
+                                "pm.test(\"Cancel Envelope - Happy path\", function () {",
+                                "    var jsonData = pm.response.json();",
+                                "    pm.expect(jsonData.header.status, \"Test has failed\").to.eql(\"succ\");",
+                                "});",
+                                ""
+                            ],
+                            "type": "text/javascript",
+                            "packages": {}
+                        }
+                    }
+                ],
+                "id": "8ea3b60e-ce7b-420e-affe-9e217e39be1a",
+                "protocolProfileBehavior": {
+                    "disableBodyPruning": true
+                },
+                "request": {
+                    "method": "POST",
+                    "header": [],
+                    "body": {
+                        "mode": "raw",
+                        "raw": "{\n  \"signature\": \"string\",\n  \"header\": {\n    \"version\": \"1.0.0\",\n    \"message_id\": \"string\",\n    \"message_ts\": \"string\",\n    \"action\": \"string\",\n    \"sender_id\": \"string\",\n    \"sender_uri\": \"\",\n    \"receiver_id\": \"\",\n    \"total_count\": 0,\n    \"is_msg_encrypted\": false,\n    \"meta\": \"string\"\n  },\n  \"message\": {\n    \"disbursement_envelope_id\": {{ENVELOPE_ID}}\n  }\n}",
+                        "options": {
+                            "raw": {
+                                "language": "json"
+                            }
+                        }
+                    },
+                    "url": {
+                        "raw": "{{BASE_URL}}/g2p-bridge/cancel_disbursement_envelope",
+                        "host": [
+                            "{{BASE_URL}}"
+                        ],
+                        "path": [
+                            "g2p-bridge",
+                            "cancel_disbursement_envelope"
+                        ]
+                    }
+                },
+                "response": [],
+                "uid": "34008469-8ea3b60e-ce7b-420e-affe-9e217e39be1a"
+            },
+            {
+                "name": "Cancel Envelope - already cancelled envelope",
+                "event": [
+                    {
+                        "listen": "test",
+                        "script": {
+                            "id": "36ae2293-5d33-4403-9002-37b3fea2f823",
+                            "exec": [
+                                "pm.test(\"Cancel Envelope - already cancelled envelope\", function () {",
+                                "    var jsonData = pm.response.json();",
+                                "    pm.expect(jsonData.header.status, \"Test has failed\").to.eql(\"rjct\");",
+                                "});",
+                                ""
+                            ],
+                            "type": "text/javascript",
+                            "packages": {}
+                        }
+                    }
+                ],
+                "id": "99416d20-bdc3-4a82-920f-a55211db9cfc",
+                "protocolProfileBehavior": {
+                    "disableBodyPruning": true
+                },
+                "request": {
+                    "method": "POST",
+                    "header": [],
+                    "body": {
+                        "mode": "raw",
+                        "raw": "{\n  \"signature\": \"string\",\n  \"header\": {\n    \"version\": \"1.0.0\",\n    \"message_id\": \"string\",\n    \"message_ts\": \"string\",\n    \"action\": \"string\",\n    \"sender_id\": \"string\",\n    \"sender_uri\": \"\",\n    \"receiver_id\": \"\",\n    \"total_count\": 0,\n    \"is_msg_encrypted\": false,\n    \"meta\": \"string\"\n  },\n  \"message\": {\n    \"disbursement_envelope_id\": {{ENVELOPE_ID}}\n  }\n}",
+                        "options": {
+                            "raw": {
+                                "language": "json"
+                            }
+                        }
+                    },
+                    "url": {
+                        "raw": "{{BASE_URL}}/g2p-bridge/cancel_disbursement_envelope",
+                        "host": [
+                            "{{BASE_URL}}"
+                        ],
+                        "path": [
+                            "g2p-bridge",
+                            "cancel_disbursement_envelope"
+                        ]
+                    }
+                },
+                "response": [],
+                "uid": "34008469-99416d20-bdc3-4a82-920f-a55211db9cfc"
+            },
+            {
+                "name": "Create Disbursements - with cancelled envelope",
+                "event": [
+                    {
+                        "listen": "test",
+                        "script": {
+                            "id": "36ae2293-5d33-4403-9002-37b3fea2f823",
+                            "exec": [
+                                "pm.test(\"Create Disbursements - with cancelled envelope\", function () {",
+                                "    var jsonData = pm.response.json();",
+                                "    pm.expect(jsonData.header.status, \"Test has failed\").to.eql(\"rjct\");",
+                                "});"
+                            ],
+                            "type": "text/javascript",
+                            "packages": {}
+                        }
+                    }
+                ],
+                "id": "7a78534d-a2b2-4b58-bc00-add9cbf7476a",
+                "protocolProfileBehavior": {
+                    "disableBodyPruning": true
+                },
+                "request": {
+                    "method": "POST",
+                    "header": [],
+                    "body": {
+                        "mode": "raw",
+                        "raw": "{\n    \"signature\": \"string\",\n    \"header\": {\n        \"version\": \"1.0.0\",\n        \"message_id\": \"string\",\n        \"message_ts\": \"string\",\n        \"action\": \"string\",\n        \"sender_id\": \"string\",\n        \"sender_uri\": \"\",\n        \"receiver_id\": \"\",\n        \"total_count\": 0,\n        \"is_msg_encrypted\": false,\n        \"meta\": \"string\"\n    },\n    \"message\": [\n        {\n            \"disbursement_envelope_id\": {{ENVELOPE_ID}},\n            \"beneficiary_id\": \"123456\",\n            \"beneficiary_name\": \"Beneficiary 01\",\n            \"disbursement_amount\": 1000,\n            \"narrative\": \"MOW Food Subsidy Aug 7th\"\n        },\n        {\n            \"disbursement_envelope_id\": {{INVALID_ENVELOPE_ID}},\n            \"beneficiary_id\": \"656434\",\n            \"beneficiary_name\": \"Beneficiary 02\",\n            \"disbursement_amount\": 1000,\n            \"narrative\": \"MOW Food Subsidy Aug 7th\"\n        },\n        {\n            \"disbursement_envelope_id\": {{INVALID_ENVELOPE_ID}},\n            \"beneficiary_id\": \"34567\",\n            \"beneficiary_name\": \"Beneficiary 03\",\n            \"disbursement_amount\": 1000,\n            \"narrative\": \"MOW Food Subsidy Aug 7th\"\n        }\n    ]\n}",
+                        "options": {
+                            "raw": {
+                                "language": "json"
+                            }
+                        }
+                    },
+                    "url": {
+                        "raw": "{{BASE_URL}}/g2p-bridge/create_disbursements",
+                        "host": [
+                            "{{BASE_URL}}"
+                        ],
+                        "path": [
+                            "g2p-bridge",
+                            "create_disbursements"
+                        ]
+                    }
+                },
+                "response": [],
+                "uid": "34008469-7a78534d-a2b2-4b58-bc00-add9cbf7476a"
+            },
+            {
+                "name": "Cancel Disbursements - Happy path",
+                "event": [
+                    {
+                        "listen": "test",
+                        "script": {
+                            "id": "36ae2293-5d33-4403-9002-37b3fea2f823",
+                            "exec": [
+                                "pm.test(\"Cancel Disbursements - Happy path\", function () {",
+                                "    var jsonData = pm.response.json();",
+                                "    pm.expect(jsonData.header.status, \"Test has failed\").to.eql(\"succ\");",
+                                "});"
+                            ],
+                            "type": "text/javascript",
+                            "packages": {}
+                        }
+                    }
+                ],
+                "id": "31d691bb-0050-4336-b04f-d195006ff4c5",
+                "protocolProfileBehavior": {
+                    "disableBodyPruning": true
+                },
+                "request": {
+                    "method": "POST",
+                    "header": [],
+                    "body": {
+                        "mode": "raw",
+                        "raw": "{\n    \"signature\": \"string\",\n    \"header\": {\n        \"version\": \"1.0.0\",\n        \"message_id\": \"string\",\n        \"message_ts\": \"string\",\n        \"action\": \"string\",\n        \"sender_id\": \"string\",\n        \"sender_uri\": \"\",\n        \"receiver_id\": \"\",\n        \"total_count\": 0,\n        \"is_msg_encrypted\": false,\n        \"meta\": \"string\"\n    },\n    \"message\": [\n        {\n            \"disbursement_id\": {{DISBURSEMENT_TO_CANCEL}}\n        }\n    ]\n}",
+                        "options": {
+                            "raw": {
+                                "language": "json"
+                            }
+                        }
+                    },
+                    "url": {
+                        "raw": "{{BASE_URL}}/g2p-bridge/cancel_disbursements",
+                        "host": [
+                            "{{BASE_URL}}"
+                        ],
+                        "path": [
+                            "g2p-bridge",
+                            "cancel_disbursements"
+                        ]
+                    }
+                },
+                "response": [],
+                "uid": "34008469-31d691bb-0050-4336-b04f-d195006ff4c5"
+            },
+            {
+                "name": "Cancel Envelope - already cancelled envelope",
+                "event": [
+                    {
+                        "listen": "test",
+                        "script": {
+                            "id": "36ae2293-5d33-4403-9002-37b3fea2f823",
+                            "exec": [
+                                "pm.test(\"Cancel Envelope - already cancelled envelope\", function () {",
+                                "    var jsonData = pm.response.json();",
+                                "    pm.expect(jsonData.header.status, \"Test has failed\").to.eql(\"rjct\");",
+                                "});"
+                            ],
+                            "type": "text/javascript",
+                            "packages": {}
+                        }
+                    }
+                ],
+                "id": "ce8a60cd-67d8-423b-958b-a1b8c2a0fe78",
+                "protocolProfileBehavior": {
+                    "disableBodyPruning": true
+                },
+                "request": {
+                    "method": "POST",
+                    "header": [],
+                    "body": {
+                        "mode": "raw",
+                        "raw": "{\n    \"signature\": \"string\",\n    \"header\": {\n        \"version\": \"1.0.0\",\n        \"message_id\": \"string\",\n        \"message_ts\": \"string\",\n        \"action\": \"string\",\n        \"sender_id\": \"string\",\n        \"sender_uri\": \"\",\n        \"receiver_id\": \"\",\n        \"total_count\": 0,\n        \"is_msg_encrypted\": false,\n        \"meta\": \"string\"\n    },\n    \"message\": [\n        {\n            \"disbursement_id\": {{DISBURSEMENT_TO_CANCEL}}\n        }\n    ]\n}",
+                        "options": {
+                            "raw": {
+                                "language": "json"
+                            }
+                        }
+                    },
+                    "url": {
+                        "raw": "{{BASE_URL}}/g2p-bridge/cancel_disbursements",
+                        "host": [
+                            "{{BASE_URL}}"
+                        ],
+                        "path": [
+                            "g2p-bridge",
+                            "cancel_disbursements"
+                        ]
+                    }
+                },
+                "response": [],
+                "uid": "34008469-ce8a60cd-67d8-423b-958b-a1b8c2a0fe78"
+            },
+            {
+                "name": "Cancel Disbursements - Invalid disbursement ID in a batch - 1 is invalid whereas other disbursement IDs are valid",
+                "event": [
+                    {
+                        "listen": "test",
+                        "script": {
+                            "id": "36ae2293-5d33-4403-9002-37b3fea2f823",
+                            "exec": [
+                                "pm.test(\"Cancel Disbursements - Invalid disbursement ID in a batch - 1 is invalid whereas other disbursement IDs are valid\", function () {",
+                                "    var jsonData = pm.response.json();",
+                                "    pm.expect(jsonData.header.status, \"Test has failed\").to.eql(\"rjct\");",
+                                "});"
+                            ],
+                            "type": "text/javascript",
+                            "packages": {}
+                        }
+                    }
+                ],
+                "id": "70e93928-b3e0-467b-a118-dd43261d7541",
+                "protocolProfileBehavior": {
+                    "disableBodyPruning": true
+                },
+                "request": {
+                    "method": "POST",
+                    "header": [],
+                    "body": {
+                        "mode": "raw",
+                        "raw": "{\n    \"signature\": \"string\",\n    \"header\": {\n        \"version\": \"1.0.0\",\n        \"message_id\": \"string\",\n        \"message_ts\": \"string\",\n        \"action\": \"string\",\n        \"sender_id\": \"string\",\n        \"sender_uri\": \"\",\n        \"receiver_id\": \"\",\n        \"total_count\": 0,\n        \"is_msg_encrypted\": false,\n        \"meta\": \"string\"\n    },\n    \"message\": [\n        {\n            \"disbursement_id\": {{INVALID_DISBURSEMENT_ID}}\n        },\n        {\n            \"disbursement_id\": {{DISBURSEMENT_TO_CANCEL_2}}\n        }\n       \n    ]\n}",
+                        "options": {
+                            "raw": {
+                                "language": "json"
+                            }
+                        }
+                    },
+                    "url": {
+                        "raw": "{{BASE_URL}}/g2p-bridge/cancel_disbursements",
+                        "host": [
+                            "{{BASE_URL}}"
+                        ],
+                        "path": [
+                            "g2p-bridge",
+                            "cancel_disbursements"
+                        ]
+                    }
+                },
+                "response": [],
+                "uid": "34008469-70e93928-b3e0-467b-a118-dd43261d7541"
+            }
+        ]
+    }
+}

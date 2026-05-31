@@ -1,0 +1,22 @@
+apiVersion: v2
+name: openg2p-g2p-bridge-example-bank-api
+description: A Helm chart for OpenG2P G2P Bridge Example Bank API
+type: application
+version: 1.1
+appVersion: ""
+dependencies:
+- name: common
+  repository: oci://registry-1.docker.io/bitnamicharts
+  version: 2.x.x
+- name: postgresql
+  repository: oci://registry-1.docker.io/bitnamicharts
+  version: 15.x.x
+  condition: postgresql.enabled
+keywords:
+  - bridge-bank-api
+maintainers:
+  - email: info@openg2p.org
+    name: OpenG2P
+icon: https://openg2p.github.io/openg2p-helm/openg2p-logo.png
+annotations:
+  catalog.cattle.io/display-name: "OpenG2P-G2P-Bridge-Example-Bank-API"

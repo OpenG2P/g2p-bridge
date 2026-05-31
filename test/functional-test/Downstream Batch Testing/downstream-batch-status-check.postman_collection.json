@@ -1,0 +1,87 @@
+{
+	"info": {
+		"_postman_id": "19cd739e-d487-4e7c-a5d8-d6b096fd8e65",
+		"name": "Downstream Batch Status Check",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "34008469"
+	},
+	"item": [
+		{
+			"name": "Check envelope status check",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"let attemptCount = pm.environment.get(\"attemptCount\") || 0;",
+							"let maxAttempts = 10;",
+							"",
+							"// Parse response",
+							"let jsonData = pm.response.json();",
+							"let received = jsonData.message.number_of_disbursements_received;",
+							"let shipped = jsonData.message.number_of_disbursements_shipped;",
+							"",
+							"// Increment attempt count",
+							"attemptCount++;",
+							"console.log('Attempts $')",
+							"// Check if it's the last attempt",
+							"if (attemptCount >= maxAttempts) {",
+							"    if (received === shipped) {",
+							"        pm.test(\"Test passed: Disbursements received match disbursements shipped\", function() {",
+							"            pm.expect(received).to.eql(shipped);",
+							"        });",
+							"    } else {",
+							"        pm.test(\"Test failed: After 10 attempts, disbursements do not match\", function() {",
+							"            pm.expect(received).to.eql(shipped);",
+							"        });",
+							"    }",
+							"} else {",
+							"    console.log(`Attempt ${attemptCount}: Disbursements pending...`);",
+							"}",
+							"",
+							"// Update the attempt count in the environment",
+							"pm.environment.set(\"attemptCount\", attemptCount);",
+							"",
+							"// Reset attempt count after last attempt",
+							"if (attemptCount >= maxAttempts) {",
+							"    pm.environment.set(\"attemptCount\", 0);",
+							"}",
+							""
+						],
+						"type": "text/javascript",
+						"packages": {}
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"signature\": \"string\",\n  \"header\": {\n    \"version\": \"1.0.0\",\n    \"message_id\": \"string\",\n    \"message_ts\": \"string\",\n    \"action\": \"string\",\n    \"sender_id\": \"string\",\n    \"sender_uri\": \"\",\n    \"receiver_id\": \"\",\n    \"total_count\": 0,\n    \"is_msg_encrypted\": false,\n    \"meta\": \"string\"\n  },\n  \"message\": \"{{ENVELOPE_ID}}\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "https://g2p-bridge.dev.openg2p.org/api/g2p-bridge/get_disbursement_envelope_status",
+					"protocol": "https",
+					"host": [
+						"g2p-bridge",
+						"dev",
+						"openg2p",
+						"org"
+					],
+					"path": [
+						"api",
+						"g2p-bridge",
+						"get_disbursement_envelope_status"
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}

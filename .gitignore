@@ -1,0 +1,34 @@
+# Root-level ignores for the consolidated g2p-bridge repo.
+# Each sub-project also keeps its own .gitignore.
+
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+*.swp
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+
+# Environments / secrets
+.env
+.secrets.*
+
+# Runtime artifacts (not source — were committed by accident in source repos)
+dump.rdb
+celerybeat-schedule
+celerybeat-schedule.db
+celerybeat.pid

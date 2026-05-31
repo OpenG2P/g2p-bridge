@@ -1,0 +1,37 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "openg2p-example-bank-celery-workers"
+authors = [
+  { name="OpenG2P", email="info@openg2p.org" },
+]
+description = "OpenG2P Example Bank Celery Workers"
+readme = "README.md"
+requires-python = ">=3.7"
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: Mozilla Public License 2.0 (MPL 2.0)",
+  "Operating System :: OS Independent",
+]
+dependencies = [
+    "openg2p-fastapi-common",
+    "celery[redis]",
+    "requests",
+    "fastnanoid",
+    "python-jose",
+    "asyncpg",
+    "psycopg2",
+
+]
+dynamic = ["version"]
+
+[project.urls]
+Homepage = "https://openg2p.org"
+Documentation = "https://docs.openg2p.org/"
+Repository = "https://github.com/OpenG2P/openg2p-g2p-bridge-example-bank"
+Source = "https://github.com/OpenG2P/openg2p-g2p-bridge-example-bank"
+
+[tool.hatch.version]
+path = "src/openg2p_example_bank_celery_workers/__init__.py"

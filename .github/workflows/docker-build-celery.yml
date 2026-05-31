@@ -1,0 +1,83 @@
+name: Build & Push G2P Bridge Celery Dockers
+
+# Triggered only when celery source, the extensions/connectors (adapters),
+# the celery Dockerfiles, or this workflow change. The image tag is the
+# g2p-bridge repository ref (branch name or git tag).
+#
+# NOTE: the Dockerfiles under docker/ are copied as-is and
+# still pip-install the services from GitHub via the G2P_REF build-arg. The
+# adapters/{version}.txt mechanism (connectors from the extensions repo) is
+# preserved there for reference; rewiring it to the in-repo extensions is part
+# of the next (versions/refs) step.
+on:
+  push:
+    branches:
+      - "**"
+    tags:
+      - "**"
+    paths:
+      - 'core/**'
+      - 'extensions/**'
+      - 'docker/g2p-bridge-celery/**'
+      - '.github/workflows/docker-build-celery.yml'
+  workflow_dispatch:
+
+jobs:
+  docker-build:
+    runs-on: ubuntu-latest
+    name: Docker - ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: celery-worker
+            image: openg2p/openg2p-g2p-bridge-celery-workers
+            dockerfile: docker/g2p-bridge-celery/celery-worker/Dockerfile
+          - name: celery-beat
+            image: openg2p/openg2p-g2p-bridge-celery-beat-producers
+            dockerfile: docker/g2p-bridge-celery/celery-beat/Dockerfile
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Docker Login
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.docker_hub_actor }}
+          password: ${{ secrets.docker_hub_token }}
+
+      - name: Derive image tag from repo ref
+        id: meta
+        shell: bash
+        run: |
+          echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          echo "created=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+          # Dockerfiles COPY adapters.requirements.txt; provide an empty one for now.
+          # Wiring in the in-repo extensions/connectors is part of the next step.
+          touch adapters.requirements.txt
+
+      - name: Build and push - ${{ matrix.name }}
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          push: true
+          platforms: linux/amd64
+          build-args: |
+            G2P_REF=${{ steps.meta.outputs.tag }}
+          tags: ${{ matrix.image }}:${{ steps.meta.outputs.tag }}
+          labels: |
+            org.opencontainers.image.created=${{ steps.meta.outputs.created }}
+            org.opencontainers.image.authors=${{ github.repository_owner }}
+            org.opencontainers.image.source=${{ github.repository }}@${{ github.sha }}
+            org.opencontainers.image.version=${{ steps.meta.outputs.tag }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.vendor=${{ github.repository_owner }}
+            org.opencontainers.image.title=${{ matrix.image }}
+            org.opencontainers.image.description=G2P Bridge Celery service image
+            org.openg2p.service.name=${{ matrix.name }}

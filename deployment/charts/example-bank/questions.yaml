@@ -1,0 +1,12 @@
+questions:
+- variable: global.exampleBankHostname
+  description: Hostname under which all Example Bank services will be accessed
+  type: string
+  label: Example Bank Hostname
+
+- variable: openg2p-g2p-bridge-example-bank-api.enabled
+  description: Install G2P Bridge Example Bank API
+  type: boolean
+  label: G2P Bridge API
+
+

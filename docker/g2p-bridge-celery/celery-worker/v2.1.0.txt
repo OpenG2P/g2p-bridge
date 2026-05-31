@@ -1,0 +1,8 @@
+#!openg2p/openg2p-g2p-bridge-celery-workers:2.1.0
+git+https://github.com/OpenG2P/openg2p-spar@2.0#subdirectory=openg2p-spar-models
+git+https://github.com/OpenG2P/openg2p-g2p-bridge-adapters@v2.1.0#subdirectory=openg2p-g2p-bridge-bank-connectors
+git+https://github.com/OpenG2P/openg2p-g2p-bridge-adapters@v2.1.0#subdirectory=openg2p-g2p-bridge-geo-resolver
+git+https://github.com/OpenG2P/openg2p-g2p-bridge-adapters@v2.1.0#subdirectory=openg2p-g2p-bridge-notification-connectors
+git+https://github.com/OpenG2P/openg2p-g2p-bridge-adapters@v2.1.0#subdirectory=openg2p-g2p-bridge-agency-allocator
+git+https://github.com/OpenG2P/openg2p-g2p-bridge-adapters@v2.1.0#subdirectory=openg2p-g2p-bridge-warehouse-allocator
+git+https://github.com/OpenG2P/openg2p-g2p-bridge-adapters@v2.1.0#subdirectory=openg2p-g2p-bridge-mapper-connectors
