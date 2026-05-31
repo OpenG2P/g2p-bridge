@@ -28,15 +28,18 @@ runs when its own component changes:
 - `tag.yml` — tag the whole repo.
 - `pre-commit.yml` — runs each sub-project's own pre-commit config.
 - `core-test.yml`, `example-bank-test.yml` — test + coverage.
-- `core-pypi-publish.yml`, `example-bank-pypi-publish.yml` — publish Python packages.
 - `docker-build-apis.yml`, `docker-build-celery.yml`, `docker-build-example-bank.yml` — build/push images. **The image tag matches the g2p-bridge repository ref** (branch name or git tag).
 - `helm-publish.yml` — package and publish every Helm chart under `deployment/charts/` (G2P Bridge + example bank).
 
 ## Notes
 
-- Versions (Python `__init__`/pyproject, Helm `Chart.yaml`, image refs) were
-  copied **as-is** from the source repos and will be reconciled as a follow-up.
-- The Dockerfiles still install services from GitHub via a `G2P_REF` build-arg
-  and the `adapters/{version}.txt` mechanism (preserved under `docker/`);
-  pointing these at this consolidated repo is part of the same follow-up.
+- The Python packages are **not published to PyPI** — every image builds them
+  from local in-repo source. Each module's `__version__` (in its `__init__.py`)
+  is `0.0.0.dev0` on `develop`.
+- Docker images build from local source. The only external OpenG2P libraries
+  (`openg2p-fastapi-common`, and `openg2p-spar-models` for celery) are
+  overridable inputs on the docker build workflows (defaults shown in the
+  GitHub Actions UI).
+- Helm `Chart.yaml` versions / `values` image tags are still to be reconciled
+  (pending chart consolidation).
 - Detailed documentation will be added separately.
