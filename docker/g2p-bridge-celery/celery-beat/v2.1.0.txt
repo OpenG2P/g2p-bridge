@@ -1,2 +1,0 @@
-#!openg2p/openg2p-g2p-bridge-celery-beat-producers:2.1.0
-git+https://github.com/openg2p/openg2p-g2p-bridge-adapters@v2.1.0#subdirectory=openg2p-g2p-bridge-bank-connectors

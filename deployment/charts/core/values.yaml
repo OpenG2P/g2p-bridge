@@ -298,11 +298,15 @@ g2pBridgeCeleryBeatProducers:
   nameOverride: celery-beat-producer
   replicaCount: 1
   image:
-    repository: openg2p/openg2p-g2p-bridge-celery-beat-producers
+    repository: openg2p/openg2p-g2p-bridge-celery
     tag: "2.1.0"
     pullPolicy: Always
 
   envVars:
+    # Run the shared celery image as the beat producer.
+    CELERY_APP: openg2p_g2p_bridge_celery_beat_producers.main.celery_app
+    CELERY_OPTS: worker --beat --loglevel=info --schedule=/tmp/celery-beat-schedule.db
+
     G2P_BRIDGE_CELERY_BEAT_DB_HOSTNAME: '{{ .Values.global.postgresqlHost }}'
     G2P_BRIDGE_CELERY_BEAT_DB_DBNAME: '{{ tpl .Values.global.bridgeDB $ }}'
     G2P_BRIDGE_CELERY_BEAT_DB_PORT: 5432
@@ -364,11 +368,15 @@ g2pBridgeCeleryWorkers:
   nameOverride: celery-worker
   replicaCount: 1
   image:
-    repository: openg2p/openg2p-g2p-bridge-celery-workers
+    repository: openg2p/openg2p-g2p-bridge-celery
     tag: "2.1.0"
     pullPolicy: Always
 
   envVars:
+    # Run the shared celery image as the worker.
+    CELERY_APP: openg2p_g2p_bridge_celery_workers.main.celery_app
+    CELERY_OPTS: worker -Q g2p_bridge_celery_worker_tasks --loglevel=info
+
     G2P_BRIDGE_CELERY_WORKERS_DB_HOSTNAME: '{{ .Values.global.postgresqlHost }}'
     G2P_BRIDGE_CELERY_WORKERS_DB_DBNAME: '{{ tpl .Values.global.bridgeDB $ }}'
     G2P_BRIDGE_CELERY_WORKERS_DB_PORT: 5432
