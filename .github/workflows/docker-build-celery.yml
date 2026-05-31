@@ -13,9 +13,7 @@ name: Build & Push G2P Bridge Celery Docker
 on:
   push:
     branches:
-      # NOTE: develop temporarily disabled.
       - "**"
-      - "!develop"
     tags:
       - "**"
     paths:

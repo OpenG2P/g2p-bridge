@@ -9,9 +9,7 @@ name: Build & Push G2P Bridge API Dockers
 on:
   push:
     branches:
-      # NOTE: develop temporarily disabled.
       - "**"
-      - "!develop"
     tags:
       - "**"
     paths:
