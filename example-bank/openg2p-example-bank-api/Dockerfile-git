@@ -1,4 +1,4 @@
-FROM bitnami/python:3.12.5-debian-12-r0
+FROM python:3.12.11-alpine3.22
 
 ARG container_user=openg2p
 ARG container_user_group=openg2p
@@ -10,26 +10,28 @@ ARG container_user_gid=1001
 # Build context = the example-bank/ folder.
 ARG FASTAPI_COMMON_REF=1.1
 
-RUN groupadd -g ${container_user_gid} ${container_user_group} \
-  && useradd -mN -u ${container_user_uid} -G ${container_user_group} -s /bin/bash ${container_user}
+RUN apk add --no-cache --virtual .build-deps gcc libc-dev linux-headers make \
+ && apk add --no-cache bash git libpq-dev
+
+RUN addgroup -g ${container_user_gid} ${container_user_group} \
+ && adduser -u ${container_user_uid} -G ${container_user_group} -D -s /bin/sh ${container_user}
 
 WORKDIR /app
 
-RUN install_packages libpq-dev \
-  && apt-get clean && rm -rf /var/lib/apt/lists /var/cache/apt/archives
+COPY --chown=${container_user}:${container_user_group} openg2p-example-bank-api /app/src
+COPY --chown=${container_user}:${container_user_group} openg2p-example-bank-api/main.py /app/main.py
+COPY --chown=${container_user}:${container_user_group} openg2p-example-bank-models /app/models
 
-RUN chown -R ${container_user}:${container_user_group} /app
-
-ADD --chown=${container_user}:${container_user_group} openg2p-example-bank-api /app/src
-ADD --chown=${container_user}:${container_user_group} openg2p-example-bank-api/main.py /app
-ADD --chown=${container_user}:${container_user_group} openg2p-example-bank-models /app/models
-
-RUN python3 -m pip install \
+RUN pip install --no-cache-dir \
     "git+https://github.com/openg2p/openg2p-fastapi-common@${FASTAPI_COMMON_REF}#subdirectory=openg2p-fastapi-common" \
     /app/models \
     /app/src
 
+RUN apk del --no-network .build-deps
+
 USER ${container_user}
+
+ENV PYTHONUNBUFFERED=1
 
 CMD python3 main.py migrate; \
     gunicorn "main:app" --workers ${EXAMPLE_BANK_NO_OF_WORKERS} --worker-class uvicorn.workers.UvicornWorker --bind ${EXAMPLE_BANK_HOST}:${EXAMPLE_BANK_PORT}
