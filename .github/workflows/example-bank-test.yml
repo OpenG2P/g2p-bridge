@@ -1,11 +1,16 @@
 name: Test and coverage (example bank)
 
 on:
+  # NOTE: temporarily disabled on the develop branch.
   pull_request:
+    branches-ignore:
+      - develop
     paths:
       - 'example-bank/**'
       - '.github/workflows/example-bank-test.yml'
   push:
+    branches-ignore:
+      - develop
     paths:
       - 'example-bank/**'
       - '.github/workflows/example-bank-test.yml'

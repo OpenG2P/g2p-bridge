@@ -1,21 +1,29 @@
 name: Build & Push Example Bank Dockers
 
-# Triggered only when example-bank source or this workflow change. The image
-# tag is the g2p-bridge repository ref (branch name or git tag).
+# Builds the example-bank images from the LOCAL in-repo source. The build
+# context is the example-bank/ folder so each service Dockerfile-git can install
+# both the service and the local openg2p-example-bank-models. The image tag is
+# the g2p-bridge repository ref (branch name or git tag).
 #
-# Uses each service's Dockerfile-git (copied as-is), which builds from the local
-# service source plus GitHub-hosted deps. The build context is the service
-# folder, matching the original Dockerfile-git expectations.
+# The external openg2p-fastapi-common ref is a workflow_dispatch input (shown
+# with a default in the GitHub Actions UI). Push/tag builds use the default.
 on:
   push:
     branches:
+      # NOTE: develop temporarily disabled.
       - "**"
+      - "!develop"
     tags:
       - "**"
     paths:
       - 'example-bank/**'
       - '.github/workflows/docker-build-example-bank.yml'
   workflow_dispatch:
+    inputs:
+      fastapi_common_ref:
+        description: "openg2p-fastapi-common git ref (tag/branch)"
+        default: "1.1"
+        type: string
 
 jobs:
   docker-build:
@@ -27,13 +35,13 @@ jobs:
         include:
           - name: example-bank-api
             image: openg2p/openg2p-g2p-bridge-example-bank-api
-            context: example-bank/openg2p-example-bank-api
+            dockerfile: example-bank/openg2p-example-bank-api/Dockerfile-git
           - name: example-bank-celery-beat-producers
             image: openg2p/openg2p-example-bank-celery-beat-producers
-            context: example-bank/openg2p-example-bank-celery-beat-producers
+            dockerfile: example-bank/openg2p-example-bank-celery-beat-producers/Dockerfile-git
           - name: example-bank-celery-workers
             image: openg2p/openg2p-example-bank-celery-workers
-            context: example-bank/openg2p-example-bank-celery-workers
+            dockerfile: example-bank/openg2p-example-bank-celery-workers/Dockerfile-git
     steps:
       - uses: actions/checkout@v4
 
@@ -59,10 +67,12 @@ jobs:
       - name: Build and push - ${{ matrix.name }}
         uses: docker/build-push-action@v6
         with:
-          context: ${{ matrix.context }}
-          file: ${{ matrix.context }}/Dockerfile-git
+          context: example-bank
+          file: ${{ matrix.dockerfile }}
           push: true
           platforms: linux/amd64
+          build-args: |
+            FASTAPI_COMMON_REF=${{ inputs.fastapi_common_ref || '1.1' }}
           tags: ${{ matrix.image }}:${{ steps.meta.outputs.tag }}
           labels: |
             org.opencontainers.image.created=${{ steps.meta.outputs.created }}

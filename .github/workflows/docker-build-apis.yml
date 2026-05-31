@@ -1,17 +1,17 @@
 name: Build & Push G2P Bridge API Dockers
 
-# Triggered only when API source, the API Dockerfiles, or this workflow change.
-# The image tag is the g2p-bridge repository ref (branch name, e.g. develop, or
-# git tag, e.g. v3.0.0) — so the docker tag always matches the repo tag.
+# Builds the API images from the LOCAL in-repo source (core/). The image tag is
+# the g2p-bridge repository ref (branch name or git tag).
 #
-# NOTE: the Dockerfiles under docker/ are copied as-is and
-# still pip-install the services from GitHub via the G2P_REF build-arg, and the
-# adapters/{version}.txt mechanism is preserved there for reference. Pointing
-# those refs at this consolidated repo is part of the next (versions/refs) step.
+# External OpenG2P libs are not in this repo; their version/ref is a
+# workflow_dispatch input (shown with a default in the GitHub Actions UI, so it
+# can be changed per run). Push/tag-triggered builds use the defaults below.
 on:
   push:
     branches:
+      # NOTE: develop temporarily disabled.
       - "**"
+      - "!develop"
     tags:
       - "**"
     paths:
@@ -19,6 +19,11 @@ on:
       - 'docker/g2p-bridge-apis/**'
       - '.github/workflows/docker-build-apis.yml'
   workflow_dispatch:
+    inputs:
+      fastapi_common_ref:
+        description: "openg2p-fastapi-common git ref (tag/branch)"
+        default: "v1.1.5"
+        type: string
 
 jobs:
   docker-build:
@@ -55,9 +60,6 @@ jobs:
         run: |
           echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
           echo "created=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
-          # Dockerfiles COPY adapters.requirements.txt; provide an empty one for now.
-          # Wiring in the in-repo extensions/connectors is part of the next step.
-          touch adapters.requirements.txt
 
       - name: Build and push - ${{ matrix.name }}
         uses: docker/build-push-action@v6
@@ -67,7 +69,7 @@ jobs:
           push: true
           platforms: linux/amd64
           build-args: |
-            G2P_REF=${{ steps.meta.outputs.tag }}
+            FASTAPI_COMMON_REF=${{ inputs.fastapi_common_ref || 'v1.1.5' }}
           tags: ${{ matrix.image }}:${{ steps.meta.outputs.tag }}
           labels: |
             org.opencontainers.image.created=${{ steps.meta.outputs.created }}

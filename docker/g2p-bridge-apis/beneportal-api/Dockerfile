@@ -1,25 +1,25 @@
 FROM python:3.12.11-alpine3.22
 
-ARG G2P_REF=v2.1.0
+# External OpenG2P library ref (not part of this repo). Override via build-arg /
+# workflow input. The g2p-bridge code itself is installed from local source.
+ARG FASTAPI_COMMON_REF=v1.1.5
 
 RUN apk add --no-cache --virtual .build-deps gcc libc-dev linux-headers make \
  && apk add --no-cache bash git gettext libpq-dev libmagic
 
 WORKDIR /app
 
-# Core libs
-RUN pip install --no-cache-dir "git+https://github.com/openg2p/openg2p-fastapi-common@v1.1.5#subdirectory=openg2p-fastapi-common" \
-    && pip install --no-cache-dir "git+https://github.com/openg2p/openg2p-fastapi-common@v1.1.5#subdirectory=openg2p-fastapi-auth-models" \
-    && pip install --no-cache-dir "git+https://github.com/openg2p/openg2p-fastapi-common@v1.1.5#subdirectory=openg2p-fastapi-auth"
-
-# Always from openg2p-g2p-bridge repo (no local installs)
+# External libs (openg2p-fastapi-common family)
 RUN pip install --no-cache-dir \
-    "git+https://github.com/openg2p/openg2p-g2p-bridge@${G2P_REF}#subdirectory=openg2p-g2p-bridge-models" \
-    "git+https://github.com/openg2p/openg2p-g2p-bridge@${G2P_REF}#subdirectory=openg2p-g2p-bridge-bene-portal-api"
+    "git+https://github.com/openg2p/openg2p-fastapi-common@${FASTAPI_COMMON_REF}#subdirectory=openg2p-fastapi-common" \
+    "git+https://github.com/openg2p/openg2p-fastapi-common@${FASTAPI_COMMON_REF}#subdirectory=openg2p-fastapi-auth-models" \
+    "git+https://github.com/openg2p/openg2p-fastapi-common@${FASTAPI_COMMON_REF}#subdirectory=openg2p-fastapi-auth"
 
-# Dynamic deps from workflow (optional)
-COPY adapters.requirements.txt /tmp/adapters.requirements.txt
-RUN if [ -s /tmp/adapters.requirements.txt ]; then pip install --no-cache-dir -r /tmp/adapters.requirements.txt; fi
+# Local g2p-bridge source (build context = repo root). Remaining deps
+# (g2pconnect libs, etc.) resolve from PyPI via each package's pyproject.
+COPY core/models /src/models
+COPY core/bene-portal-api /src/bene-portal-api
+RUN pip install --no-cache-dir /src/models /src/bene-portal-api
 
 RUN apk del --no-network .build-deps
 

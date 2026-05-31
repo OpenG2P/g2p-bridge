@@ -3,19 +3,19 @@ name: Build & Push G2P Bridge Celery Docker
 # Single celery image for both roles (worker and beat producer); the role is
 # selected at runtime via CELERY_APP / CELERY_OPTS, set by the Helm chart.
 #
-# Triggered only when celery source, the extensions/connectors (adapters), the
-# celery Dockerfile, or this workflow change. The image tag is the g2p-bridge
-# repository ref (branch name or git tag).
+# Builds from the LOCAL in-repo source (core/ + extensions/). The image tag is
+# the g2p-bridge repository ref (branch name or git tag).
 #
-# NOTE: the Dockerfile under docker/ is copied as-is and still pip-installs the
-# services from GitHub via the G2P_REF build-arg. The adapters/{version}.txt
-# mechanism (connectors from the extensions repo) is preserved there for
-# reference; rewiring it to the in-repo extensions is part of the next
-# (versions/refs) step.
+# External OpenG2P libs are not in this repo; their version/ref is a
+# workflow_dispatch input (shown with a default in the GitHub Actions UI, so it
+# can be changed per run). openg2p-spar-models is only needed by the
+# mapper-connectors extension. Push/tag-triggered builds use the defaults below.
 on:
   push:
     branches:
+      # NOTE: develop temporarily disabled.
       - "**"
+      - "!develop"
     tags:
       - "**"
     paths:
@@ -24,6 +24,15 @@ on:
       - 'docker/g2p-bridge-celery/**'
       - '.github/workflows/docker-build-celery.yml'
   workflow_dispatch:
+    inputs:
+      fastapi_common_ref:
+        description: "openg2p-fastapi-common git ref (tag/branch)"
+        default: "v1.1.5"
+        type: string
+      spar_ref:
+        description: "openg2p-spar git ref (tag/branch) for openg2p-spar-models"
+        default: "2.0"
+        type: string
 
 env:
   IMAGE_NAME: openg2p/openg2p-g2p-bridge-celery
@@ -53,9 +62,6 @@ jobs:
         run: |
           echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
           echo "created=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
-          # Dockerfile COPYs adapters.requirements.txt; provide an empty one for now.
-          # Wiring in the in-repo extensions/connectors is part of the next step.
-          touch adapters.requirements.txt
 
       - name: Build and push - celery
         uses: docker/build-push-action@v6
@@ -65,7 +71,8 @@ jobs:
           push: true
           platforms: linux/amd64
           build-args: |
-            G2P_REF=${{ steps.meta.outputs.tag }}
+            FASTAPI_COMMON_REF=${{ inputs.fastapi_common_ref || 'v1.1.5' }}
+            SPAR_REF=${{ inputs.spar_ref || '2.0' }}
           tags: ${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.tag }}
           labels: |
             org.opencontainers.image.created=${{ steps.meta.outputs.created }}

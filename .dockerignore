@@ -1,0 +1,18 @@
+# Build context for the api/celery images is the repo root; keep it lean.
+# (Only core/, extensions/ and docker/g2p-bridge-celery/run_celery.py are needed.)
+.git
+.github
+**/__pycache__
+**/*.py[cod]
+**/.pytest_cache
+**/.ruff_cache
+**/.mypy_cache
+**/.DS_Store
+**/dump.rdb
+**/celerybeat-schedule*
+*.md
+
+# Unrelated to the api/celery image builds
+deployment/
+test/
+example-bank/

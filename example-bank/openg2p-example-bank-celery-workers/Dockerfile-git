@@ -5,6 +5,11 @@ ARG container_user_group=openg2p
 ARG container_user_uid=1001
 ARG container_user_gid=1001
 
+# External OpenG2P library ref (not part of this repo). Override via build-arg /
+# workflow input. The example-bank code + models are installed from local source.
+# Build context = the example-bank/ folder.
+ARG FASTAPI_COMMON_REF=1.1
+
 RUN groupadd -g ${container_user_gid} ${container_user_group} \
   && useradd -mN -u ${container_user_uid} -G ${container_user_group} -s /bin/bash ${container_user}
 
@@ -15,15 +20,14 @@ RUN install_packages libpq-dev \
 
 RUN chown -R ${container_user}:${container_user_group} /app
 
-ADD --chown=${container_user}:${container_user_group} . /app/src
-ADD --chown=${container_user}:${container_user_group} main.py /app
+ADD --chown=${container_user}:${container_user_group} openg2p-example-bank-celery-workers /app/src
+ADD --chown=${container_user}:${container_user_group} openg2p-example-bank-celery-workers/main.py /app
+ADD --chown=${container_user}:${container_user_group} openg2p-example-bank-models /app/models
 
-RUN python3 -m venv venv \
-  && . ./venv/bin/activate
-RUN python3 -m pip install  \
-    git+https://github.com/openg2p/openg2p-fastapi-common@1.1\#subdirectory=openg2p-fastapi-common \
-    git+https://github.com/openg2p/openg2p-g2p-bridge-example-bank@1.1\#subdirectory=openg2p-example-bank-models \
-    ./src
+RUN python3 -m pip install \
+    "git+https://github.com/openg2p/openg2p-fastapi-common@${FASTAPI_COMMON_REF}#subdirectory=openg2p-fastapi-common" \
+    /app/models \
+    /app/src
 
 USER ${container_user}
 

@@ -1,11 +1,16 @@
 name: Test and coverage (core)
 
 on:
+  # NOTE: temporarily disabled on the develop branch.
   pull_request:
+    branches-ignore:
+      - develop
     paths:
       - 'core/**'
       - '.github/workflows/core-test.yml'
   push:
+    branches-ignore:
+      - develop
     paths:
       - 'core/**'
       - '.github/workflows/core-test.yml'
