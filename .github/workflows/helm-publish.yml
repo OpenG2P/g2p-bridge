@@ -1,14 +1,13 @@
 name: Publish OpenG2P G2P Bridge Helm charts
 
-# Publishes every chart under deployment/charts/ (the G2P Bridge `core` chart
-# and the `example-bank` charts). Triggered only when those charts, or this
-# workflow, change; each changed chart is packaged and pushed.
+# Publishes the consolidated openg2p-bridge chart under deployment/charts/.
+# Triggered when the charts (or this workflow) change; each changed chart is
+# packaged and pushed.
 on:
   push:
     tags:
       - '**'
     branches-ignore:
-      - develop
       - main
     paths:
       - 'deployment/charts/**'

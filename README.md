@@ -12,7 +12,7 @@ folder structure intact.
 | [`extensions/`](extensions) | `openg2p-g2p-bridge-extensions` | Pluggable adapters/connectors: agency-allocator, bank-connectors, geo-resolver, mapper-connectors, notification-connectors, warehouse-allocator |
 | [`example-bank/`](example-bank) | `openg2p-g2p-bridge-example-bank` | Reference "example bank": api, celery-beat-producers, celery-workers, models |
 | [`docker/`](docker) | `openg2p-g2p-bridge-docker` | Dockerfiles for the API and Celery service images |
-| [`deployment/`](deployment) | `openg2p-g2p-bridge-deployment` + `openg2p-g2p-bridge-example-bank-deployment` | Helm charts for G2P Bridge (`charts/core`) and the example bank (`charts/example-bank*`) |
+| [`deployment/`](deployment) | `openg2p-g2p-bridge-deployment` + `openg2p-g2p-bridge-example-bank-deployment` | Single consolidated Helm chart `charts/openg2p-bridge` (G2P Bridge + bundled example-bank, toggle via `exampleBank.enabled`) |
 | [`test/`](test) | `openg2p-g2p-bridge-test` | Functional / Postman tests |
 
 The redundant `openg2p-g2p-bridge-` prefix has been stripped from folder and
@@ -25,7 +25,6 @@ All GitHub Actions live in [`.github/workflows`](.github/workflows) (the only
 location GitHub runs them from). Each is scoped with `paths:` filters so it only
 runs when its own component changes:
 
-- `tag.yml` — tag the whole repo.
 - `pre-commit.yml` — runs each sub-project's own pre-commit config.
 - `core-test.yml`, `example-bank-test.yml` — test + coverage.
 - `docker-build-apis.yml`, `docker-build-celery.yml`, `docker-build-example-bank.yml` — build/push images. **The image tag matches the g2p-bridge repository ref** (branch name or git tag).

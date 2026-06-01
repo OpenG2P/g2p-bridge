@@ -4,13 +4,8 @@ name: pre-commit
 # runs pre-commit independently inside each one so a change in any project is
 # linted with that project's own configuration.
 on:
-  # NOTE: temporarily disabled on the develop branch.
   pull_request:
-    branches-ignore:
-      - develop
   push:
-    branches-ignore:
-      - develop
   workflow_dispatch:
 
 jobs:
