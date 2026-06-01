@@ -682,7 +682,7 @@ exampleBankApi:
       gateway: "internal"
       destination: openg2p-g2p-bridge-example-bank-api
       destinationPort: 80
-      prefix: /api/example-bank/
+      prefix: '{{ .Values.exampleBankApi.openapiRootPath }}/'
       rewriteUri: "/"
     gateway:
       enabled: false
