@@ -42,9 +42,10 @@ global:
   # Key containing client password (keycloak-init uses "client_secret").
   g2pBridgeAuthClientSecretKey: 'client_secret'
 
-  # Production: Keymanager enforces OAuth, so the Bridge authenticates with the
-  # g2p-bridge client (client-credentials) to sign/validate via Keymanager.
-  g2pBridgeKeymanagerAuthEnabled: true
+  # When true, the Bridge authenticates to Keymanager (client-credentials) using
+  # the g2p-bridge client. Disabled for now; enable in production together with
+  # keycloak-init.enabled below.
+  g2pBridgeKeymanagerAuthEnabled: false
   g2pBridgeKeymanagerAppId: OPENG2P_BRIDGE
 
   PBMSDBHostname: commons-postgresql
@@ -547,6 +548,9 @@ redis:
 # (client-credentials) when g2pBridgeKeymanagerAuthEnabled is true. The
 # confidential client's generated secret is stored in a Secret named after the
 # clientId (key "client_secret") — exactly what the Bridge services consume.
+# Disabled for now (enable in production together with
+# global.g2pBridgeKeymanagerAuthEnabled); leaving it on would make `helm install`
+# depend on Keycloak being reachable.
 # ---------------------------------------------------------------------------
 keycloak-init:
   enabled: true
