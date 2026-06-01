@@ -41,6 +41,24 @@ questions:
   label: Sponsor Account Branch Code
   group: Disbursement
   show_if: global.g2pBridgeInKindEnabled=false
+- variable: global.sponsorBankConfigurations.default.account_currency
+  description: Currency of the sponsor/treasury account (also used to seed the Example Bank account).
+  type: string
+  label: Sponsor Account Currency
+  group: Disbursement
+  show_if: global.g2pBridgeInKindEnabled=false
+- variable: global.sponsorBankConfigurations.default.available_balance
+  description: Opening balance for the seeded Example Bank treasury account.
+  type: string
+  label: Treasury Opening Balance
+  group: Disbursement
+  show_if: global.g2pBridgeInKindEnabled=false
+- variable: global.seedTreasuryAccount
+  description: Seed the treasury/sponsor account into the bundled Example Bank (it has no account-creation API). Disable in environments using a real bank.
+  type: boolean
+  default: true
+  label: Seed Example Bank Treasury Account
+  group: Disbursement
 
 # --------------------------- Example Bank ---------------------------
 - variable: exampleBank.enabled

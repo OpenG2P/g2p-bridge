@@ -77,16 +77,30 @@ global:
   # where neither Registry nor PBMS is needed.
   g2pBridgeInKindEnabled: false
 
-  # Sponsor bank configuration for pure digital cash (used when
-  # g2pBridgeInKindEnabled is false) — sourced from these values instead of PBMS.
-  # Keyed by "<benefit_program_id>:<benefit_code_id>"; "default" applies to all.
-  # program_account_number must match what the bank/example-bank expects.
+  # Single source of truth for the sponsor/treasury account, used both by the
+  # Bridge (digital-cash sponsor config, when g2pBridgeInKindEnabled is false)
+  # and to seed that same account into the bundled Example Bank (see
+  # seedTreasuryAccount below). Keyed by "<benefit_program_id>:<benefit_code_id>";
+  # "default" applies to all.
+  #   - sponsor_bank_code / program_account_* : consumed by the Bridge worker.
+  #   - account_currency / available_balance / account_holder_name : used to
+  #     create the matching account in the Example Bank.
   sponsorBankConfigurations:
     default:
       sponsor_bank_code: EXAMPLE
-      program_account_number: ""
+      program_account_number: "SPONSOR0001"
       program_account_type: ""
       program_account_branch_code: ""
+      account_currency: USD
+      # Quoted so it renders as "100000000" (not 1e+08) in the env var.
+      available_balance: "10000000"
+      account_holder_name: Program Treasury
+
+  # Seed the treasury/sponsor account (from sponsorBankConfigurations.default)
+  # into the Example Bank on its migrate. Needed for the digital-cash demo
+  # because the Example Bank has no account-creation API. No effect when the
+  # Example Bank is not deployed.
+  seedTreasuryAccount: true
 
 postgres-init:
   enabled: true
@@ -685,6 +699,14 @@ exampleBankApi:
     EXAMPLE_BANK_OPENAPI_ROOT_PATH: '{{ .Values.openapiRootPath }}'
     EXAMPLE_BANK_CELERY_BROKER_URL: redis://{{ tpl .Values.global.redisInstallationName $ }}:6379/0
     EXAMPLE_BANK_CELERY_BACKEND_URL: redis://{{ tpl .Values.global.redisInstallationName $ }}:6379/0
+
+    # Treasury/sponsor account seed — same account the Bridge debits for digital
+    # cash (single source: global.sponsorBankConfigurations.default).
+    EXAMPLE_BANK_SEED_TREASURY_ACCOUNT: '{{ .Values.global.seedTreasuryAccount }}'
+    EXAMPLE_BANK_TREASURY_ACCOUNT_NUMBER: '{{ .Values.global.sponsorBankConfigurations.default.program_account_number }}'
+    EXAMPLE_BANK_TREASURY_ACCOUNT_CURRENCY: '{{ .Values.global.sponsorBankConfigurations.default.account_currency }}'
+    EXAMPLE_BANK_TREASURY_AVAILABLE_BALANCE: '{{ .Values.global.sponsorBankConfigurations.default.available_balance }}'
+    EXAMPLE_BANK_TREASURY_ACCOUNT_HOLDER_NAME: '{{ .Values.global.sponsorBankConfigurations.default.account_holder_name }}'
   envVarsFrom:
     EXAMPLE_BANK_DB_PASSWORD:
       secretKeyRef:
