@@ -4,10 +4,13 @@ global:
   namespace: trial
 
   postgresqlHost: commons-postgresql
-  bridgeDB: '{{ .Release.Name }}_db'
-  bridgeDBUser: '{{ .Release.Name }}_db_user'
+  # Bridge DB naming modeled on NSR: DB/user derived from the release name
+  # (dashes -> underscores so they're valid Postgres identifiers).
+  bridgeDB: '{{ printf "%s" .Release.Name | replace "-" "_" }}'
+  bridgeDBPort: 5432
+  bridgeDBUser: '{{ printf "%s_user" .Release.Name | replace "-" "_" }}'
   bridgeDBSecret: '{{ .Release.Name }}'
-  bridgeDBUserPasswordKey: '{{ .Release.Name }}_db_user'
+  bridgeDBUserPasswordKey: '{{ .Release.Name }}-db-user'
 
     # Internal service name of Keymanager (same as NSR)
   keymanagerInstallationName: commons-services-keymanager
@@ -139,7 +142,7 @@ g2pBridgeApi:
   envVars:
     G2P_BRIDGE_DB_HOSTNAME: '{{ .Values.global.postgresqlHost }}'
     G2P_BRIDGE_DB_DBNAME: '{{ tpl .Values.global.bridgeDB $ }}'
-    G2P_BRIDGE_DB_PORT: 5432
+    G2P_BRIDGE_DB_PORT: '{{ .Values.global.bridgeDBPort }}'
     G2P_BRIDGE_DB_USERNAME: '{{ tpl .Values.global.bridgeDBUser $ }}'
     G2P_BRIDGE_PORT: '{{ .Values.containerPort }}'
     G2P_BRIDGE_OPENAPI_ROOT_PATH: '{{ .Values.openapiRootPath }}'
@@ -266,7 +269,7 @@ openg2pG2pBridgeBenePortalApi:
   envVars:
     BRIDGE_BENE_PORTAL_API_DB_HOSTNAME: '{{ .Values.global.postgresqlHost }}'
     BRIDGE_BENE_PORTAL_API_DB_DBNAME: '{{ tpl .Values.global.bridgeDB $ }}'
-    BRIDGE_BENE_PORTAL_API_DB_PORT: 5432
+    BRIDGE_BENE_PORTAL_API_DB_PORT: '{{ .Values.global.bridgeDBPort }}'
     BRIDGE_BENE_PORTAL_API_DB_USERNAME: '{{ tpl .Values.global.bridgeDBUser $ }}'
   envVarsFrom:
     BRIDGE_BENE_PORTAL_API_DB_PASSWORD:
@@ -336,7 +339,7 @@ g2pBridgeCeleryBeatProducers:
 
     G2P_BRIDGE_CELERY_BEAT_DB_HOSTNAME: '{{ .Values.global.postgresqlHost }}'
     G2P_BRIDGE_CELERY_BEAT_DB_DBNAME: '{{ tpl .Values.global.bridgeDB $ }}'
-    G2P_BRIDGE_CELERY_BEAT_DB_PORT: 5432
+    G2P_BRIDGE_CELERY_BEAT_DB_PORT: '{{ .Values.global.bridgeDBPort }}'
     G2P_BRIDGE_CELERY_BEAT_DB_USERNAME: '{{ tpl .Values.global.bridgeDBUser $ }}'
 
     G2P_BRIDGE_CELERY_BEAT_CELERY_BROKER_URL: redis://{{ tpl .Values.global.redisInstallationName $ }}:6379/0
@@ -406,7 +409,7 @@ g2pBridgeCeleryWorkers:
 
     G2P_BRIDGE_CELERY_WORKERS_DB_HOSTNAME: '{{ .Values.global.postgresqlHost }}'
     G2P_BRIDGE_CELERY_WORKERS_DB_DBNAME: '{{ tpl .Values.global.bridgeDB $ }}'
-    G2P_BRIDGE_CELERY_WORKERS_DB_PORT: 5432
+    G2P_BRIDGE_CELERY_WORKERS_DB_PORT: '{{ .Values.global.bridgeDBPort }}'
     G2P_BRIDGE_CELERY_WORKERS_DB_USERNAME: '{{ tpl .Values.global.bridgeDBUser $ }}'
     G2P_BRIDGE_CELERY_WORKERS_CELERY_BROKER_URL: redis://{{ tpl .Values.global.redisInstallationName $ }}:6379/0
     G2P_BRIDGE_CELERY_WORKERS_CELERY_BACKEND_URL: redis://{{ tpl .Values.global.redisInstallationName $ }}:6379/0
