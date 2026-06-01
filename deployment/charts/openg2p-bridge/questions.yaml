@@ -49,6 +49,12 @@ questions:
   show_if: exampleBank.enabled=true
 
 # ----------------------------- Keycloak -----------------------------
+- variable: keycloak-init.enabled
+  description: Run keycloak-init to create the g2p-bridge OIDC client and its secret
+  type: boolean
+  default: true
+  label: Create Keycloak Client
+  group: Keycloak
 - variable: global.keycloakBaseUrl
   description: Keycloak Base Url used in all components
   type: string

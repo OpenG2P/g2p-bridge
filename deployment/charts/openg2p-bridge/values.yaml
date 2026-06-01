@@ -34,15 +34,17 @@ global:
 
   g2pBridgeMapperBaseUrl: 'http://spar-mapper-api/sync'
 
-  # This is the typical default name of the client and secret
-  g2pBridgeAuthClientId: 'openg2p-g2p-bridge-{{ .Release.Namespace }}'
-  # Name of the secret in Kuberentes containing (DO NOT password directly here)
-  # Same name as client id by convension.
+  # OIDC client created by keycloak-init (see keycloak-init.realms below).
+  g2pBridgeAuthClientId: 'g2p-bridge'
+  # K8s secret holding the client password — same name as the client id, since
+  # keycloak-init stores the generated secret in a Secret named after the clientId.
   g2pBridgeAuthClientSecret: '{{ tpl .Values.global.g2pBridgeAuthClientId $ }}'
-  # Key containing client password. Hardcoded in Keycloak Init script
+  # Key containing client password (keycloak-init uses "client_secret").
   g2pBridgeAuthClientSecretKey: 'client_secret'
 
-  g2pBridgeKeymanagerAuthEnabled: false
+  # Production: Keymanager enforces OAuth, so the Bridge authenticates with the
+  # g2p-bridge client (client-credentials) to sign/validate via Keymanager.
+  g2pBridgeKeymanagerAuthEnabled: true
   g2pBridgeKeymanagerAppId: OPENG2P_BRIDGE
 
   PBMSDBHostname: commons-postgresql
@@ -538,6 +540,36 @@ redis:
       enabled: false
   auth:
     enabled: false
+
+# ---------------------------------------------------------------------------
+# Keycloak init (referenced from the NSR chart): creates the G2P Bridge OIDC
+# client and its K8s secret so the Bridge can authenticate to Keymanager
+# (client-credentials) when g2pBridgeKeymanagerAuthEnabled is true. The
+# confidential client's generated secret is stored in a Secret named after the
+# clientId (key "client_secret") — exactly what the Bridge services consume.
+# ---------------------------------------------------------------------------
+keycloak-init:
+  enabled: true
+  keycloak:
+    # Internal URL to reach Keycloak within the namespace (commons layer).
+    url: 'http://commons-keycloak:80'
+    user: 'admin'
+    password: ''
+    # Keycloak chart's auto-created admin secret.
+    existingSecret: 'commons-keycloak'
+    existingSecretKey: 'admin-password'
+  suffix: '{{ .Release.Namespace }}'
+  realms:
+    '{{ tpl .Values.global.keycloakRealm $ }}':
+      clients:
+        - clientId: '{{ tpl .Values.global.g2pBridgeAuthClientId $ }}'
+          name: OpenG2P G2P Bridge
+          # Confidential service client (client-credentials). keycloak-init
+          # auto-generates the secret into a K8s Secret named after the clientId.
+          publicClient: false
+          # Host-scoped redirect URI (never a bare "*").
+          redirectUris:
+            - 'https://{{ tpl .Values.global.g2pBridgeHostname $ }}/*'
 
 # ---------------------------------------------------------------------------
 # Example Bank simulator (bundled). Set exampleBank.enabled=false to skip the

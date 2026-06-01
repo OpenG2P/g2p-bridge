@@ -8,8 +8,10 @@ A single consolidated Helm chart under [`charts/`](charts):
   (DB `example_bank_db` via `postgres-init`) and this chart's Redis. Toggle it
   with `exampleBank.enabled` (default `true`; set `false` for production).
 
-  The Bridge expects a Keycloak OIDC client (`global.g2pBridgeAuthClientId`) and
-  its secret to exist already — this chart does not create them.
+  It creates the Bridge's Keycloak OIDC client (`g2p-bridge`) and its secret via
+  the `keycloak-init` dependency (realm `global.keycloakRealm`, default `staff`),
+  so the Bridge can authenticate to Keymanager (client-credentials) when
+  `global.g2pBridgeKeymanagerAuthEnabled` is true (the production default).
 
 Chart version on `develop` is `0.0.0-develop`; on a release tag it is published
 as the tag. All changeable values (hostnames, Keycloak, SPAR, keymanager,
