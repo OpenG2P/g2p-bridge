@@ -1,4 +1,4 @@
-name: Publish OpenG2P G2P Bridge Helm charts
+name: Publish G2P Bridge Helm chart
 
 # Publishes the consolidated openg2p-bridge chart under deployment/charts/.
 # Triggered when the charts (or this workflow) change; each changed chart is
@@ -30,43 +30,31 @@ jobs:
     - name: Checkout Repository
       uses: actions/checkout@v3
 
-    - id: files
-      uses: jitterbit/get-changed-files@v1
-
-    - name: save helm/charts to tmp.txt file
+    - name: Package charts
       run: |
-        touch charts-list.txt
-        for changed_file in ${{ steps.files.outputs.all }}; do
-          if [[ ${changed_file} =~ ^deployment/charts/ ]]; then
-            chart_name=$(echo "${changed_file}" | awk -F/ '{print $3}')
-            echo $chart_name >> charts-list.txt;
-            echo "Saved $chart_name chart to charts-list.txt"
+        # Publish every chart that actually exists under deployment/charts/.
+        # (Enumerating real chart dirs is robust to renames/deletions and to
+        # tag pushes, unlike a changed-files diff.)
+        RANCHER_CHARTS=()
+        published=0
+        for chartdir in "$CHARTS_DIR"/*/; do
+          [ -f "${chartdir}Chart.yaml" ] || continue
+          chartname=$(basename "${chartdir%/}")
+          echo "Packaging chart: $chartname"
+          helm dep up "$CHARTS_DIR/$chartname"
+          helm package "$CHARTS_DIR/$chartname"
+          published=$((published + 1))
+          is_rancher_chart=$(grep "$RANCHER_CHART_FILTER" "$CHARTS_DIR/$chartname/Chart.yaml" || true)
+          if [ -n "$is_rancher_chart" ]; then
+            RANCHER_CHARTS+=("$chartname")
           fi
         done
-        cat charts-list.txt | sort | uniq > charts-list-unique.txt
-        mv charts-list-unique.txt charts-list.txt
-        echo "List of charts to be published";
-        cat charts-list.txt
 
-    - name: Generate tar files
-      run: |
-        if [[ ! -s charts-list.txt ]]; then
-          echo "::warning::No Charts to publish";
+        if [ "$published" -eq 0 ]; then
+          echo "::warning::No charts found to publish";
           echo "SKIP=TRUE" >> $GITHUB_ENV
-        else
-          RANCHER_CHARTS=()
-          while IFS= read -r chartname; do
-            echo "Chartname: $chartname"
-            helm dep up "$CHARTS_DIR/$chartname"
-            helm package "$CHARTS_DIR/$chartname"
-            is_rancher_chart=$(grep "$RANCHER_CHART_FILTER" "$CHARTS_DIR/$chartname/Chart.yaml" || true)
-            if [ -n "$is_rancher_chart" ]; then
-              RANCHER_CHARTS+=("$chartname")
-            fi
-          done < charts-list.txt
-          echo "RANCHER_CHARTS=${RANCHER_CHARTS[@]}" >> $GITHUB_ENV
-          rm charts-list.txt
         fi
+        echo "RANCHER_CHARTS=${RANCHER_CHARTS[@]}" >> $GITHUB_ENV
 
         shopt -s nocasematch
         if [[ '${{ github.repository_owner }}' != 'OpenG2P' ]]; then

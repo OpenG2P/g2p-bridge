@@ -2,6 +2,7 @@ import os
 import sys
 import importlib
 
+
 def get_app():
     app_path = os.environ.get("CELERY_APP")
     if not app_path:
@@ -20,6 +21,7 @@ def get_app():
     except Exception as e:
         print(f"Error loading Celery app '{app_path}': {e}")
         sys.exit(1)
+
 
 def main():
     celery_app = get_app()
@@ -46,6 +48,7 @@ def main():
     except Exception as e:
         print(f"Error starting via app.start(): {e}")
         raise
+
 
 if __name__ == "__main__":
     main()

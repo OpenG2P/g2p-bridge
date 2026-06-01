@@ -1,8 +1,10 @@
 name: pre-commit
 
-# Each consolidated sub-project keeps its own .pre-commit-config.yaml; this
-# runs pre-commit independently inside each one so a change in any project is
-# linted with that project's own configuration.
+# Each consolidated sub-project keeps its own .pre-commit-config.yaml. Run
+# pre-commit per project, scoped to ONLY that project's files (via git ls-files
+# of the project path), so one project's hooks never run over another's files.
+# This matters because the python projects' check-yaml/black would otherwise
+# choke on the Helm templates and reformat unrelated code repo-wide.
 on:
   pull_request:
   push:
@@ -27,5 +29,12 @@ jobs:
           python-version: "3.13"
       - run: pip install pre-commit
       - name: Run pre-commit for ${{ matrix.project }}
-        working-directory: ${{ matrix.project }}
-        run: pre-commit run --all-files --show-diff-on-failure
+        shell: bash
+        run: |
+          if [ -z "$(git ls-files -- '${{ matrix.project }}/')" ]; then
+            echo "No tracked files under ${{ matrix.project }}/ — nothing to check."
+            exit 0
+          fi
+          git ls-files -z -- '${{ matrix.project }}/' | xargs -0 pre-commit run \
+            --config '${{ matrix.project }}/.pre-commit-config.yaml' \
+            --show-diff-on-failure --files
