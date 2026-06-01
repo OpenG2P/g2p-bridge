@@ -9,7 +9,10 @@ global:
   bridgeDB: '{{ printf "%s" .Release.Name | replace "-" "_" }}'
   bridgeDBPort: 5432
   bridgeDBUser: '{{ printf "%s_user" .Release.Name | replace "-" "_" }}'
-  bridgeDBSecret: '{{ .Release.Name }}'
+  # NOTE: '-db' suffix avoids colliding with the keycloak client secret, which
+  # keycloak-init names after the clientId (g2p-bridge). NSR can use the bare
+  # release name because its client isn't named after the release.
+  bridgeDBSecret: '{{ .Release.Name }}-db'
   bridgeDBUserPasswordKey: '{{ .Release.Name }}-db-user'
 
     # Internal service name of Keymanager (same as NSR)
