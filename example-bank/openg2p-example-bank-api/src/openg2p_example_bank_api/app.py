@@ -87,6 +87,7 @@ class Initializer(BaseInitializer):
                 return
             session.add(
                 Account(
+                    active=True,
                     account_holder_name=_config.treasury_account_holder_name,
                     account_number=account_number,
                     account_currency=_config.treasury_account_currency,
