@@ -25,14 +25,6 @@ def construct_db_datasource(db_driver, db_username, db_password, db_hostname, db
 
 
 def get_engine():
-    db_datasource_pbms = construct_db_datasource(
-        _config.db_driver_pbms,
-        _config.db_username_pbms,
-        _config.db_password_pbms,
-        _config.db_hostname_pbms,
-        _config.db_port_pbms,
-        _config.db_dbname_pbms,
-    )
     db_datasource_bridge = construct_db_datasource(
         _config.db_driver,
         _config.db_username,
@@ -41,9 +33,20 @@ def get_engine():
         _config.db_port,
         _config.db_dbname,
     )
-    db_engine_pbms = create_engine(db_datasource_pbms)
-    db_engine_bridge = create_engine(db_datasource_bridge)
-    return {
-        "db_engine_pbms": db_engine_pbms,
-        "db_engine_bridge": db_engine_bridge,
+    engines = {
+        "db_engine_bridge": create_engine(db_datasource_bridge),
     }
+    # The PBMS engine is only needed for in-kind disbursements (warehouse/agency
+    # allocation). For pure digital cash transfer it is never created, so a
+    # digital-only deployment does not need PBMS at all.
+    if _config.in_kind_enabled:
+        db_datasource_pbms = construct_db_datasource(
+            _config.db_driver_pbms,
+            _config.db_username_pbms,
+            _config.db_password_pbms,
+            _config.db_hostname_pbms,
+            _config.db_port_pbms,
+            _config.db_dbname_pbms,
+        )
+        engines["db_engine_pbms"] = create_engine(db_datasource_pbms)
+    return engines

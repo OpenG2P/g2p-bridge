@@ -16,6 +16,32 @@ questions:
   label: Bene Portal Hostname
   group: General
 
+# ------------------------ Disbursement mode -------------------------
+- variable: global.g2pBridgeInKindEnabled
+  description: Enable in-kind disbursements (geo targeting, warehouse & agency allocation). Requires the Registry and PBMS databases. Leave off for pure digital cash transfer.
+  type: boolean
+  default: false
+  label: Enable In-kind Disbursements
+  group: Disbursement
+- variable: global.sponsorBankConfigurations.default.sponsor_bank_code
+  description: Sponsor/treasury bank code to disburse from (digital cash). Used when in-kind is off.
+  type: string
+  label: Sponsor Bank Code
+  group: Disbursement
+  show_if: global.g2pBridgeInKindEnabled=false
+- variable: global.sponsorBankConfigurations.default.program_account_number
+  description: Sponsor/treasury program account number to disburse from (digital cash).
+  type: string
+  label: Sponsor Account Number
+  group: Disbursement
+  show_if: global.g2pBridgeInKindEnabled=false
+- variable: global.sponsorBankConfigurations.default.program_account_branch_code
+  description: Sponsor/treasury program account branch code (digital cash).
+  type: string
+  label: Sponsor Account Branch Code
+  group: Disbursement
+  show_if: global.g2pBridgeInKindEnabled=false
+
 # --------------------------- Example Bank ---------------------------
 - variable: exampleBank.enabled
   description: Deploy the bundled Example Bank simulator (api + celery beat/worker). Disable for production.
@@ -138,26 +164,31 @@ questions:
   type: string
   label: Registry Database Hostname
   group: Registry
+  show_if: global.g2pBridgeInKindEnabled=true
 - variable: global.registryDB
   description: Registry Database
   type: string
   label: Registry Database
   group: Registry
+  show_if: global.g2pBridgeInKindEnabled=true
 - variable: global.registryDBUser
   description: Registry database user
   type: string
   label: Registry Database User
   group: Registry
+  show_if: global.g2pBridgeInKindEnabled=true
 - variable: global.registryDBSecret
   description: Registry database user Kubernetes secret
   type: string
   label: Registry Database User Secret
   group: Registry
+  show_if: global.g2pBridgeInKindEnabled=true
 - variable: global.registryDBUserPasswordKey
   description: Registry database user password key
   type: string
   label: Registry Database User Password Key
   group: Registry
+  show_if: global.g2pBridgeInKindEnabled=true
 
 # ----------------------------- PBMS Database ------------------------
 - variable: global.PBMSDBHostname
@@ -165,26 +196,31 @@ questions:
   type: string
   label: PBMS Database Hostname
   group: PBMS
+  show_if: global.g2pBridgeInKindEnabled=true
 - variable: global.PBMSDB
   description: PBMS Database
   type: string
   label: PBMS Database
   group: PBMS
+  show_if: global.g2pBridgeInKindEnabled=true
 - variable: global.PBMSDBUser
   description: PBMS database user
   type: string
   label: PBMS Database User
   group: PBMS
+  show_if: global.g2pBridgeInKindEnabled=true
 - variable: global.PBMSDBSecret
   description: PBMS database user Kubernetes secret
   type: string
   label: PBMS Database User Secret
   group: PBMS
+  show_if: global.g2pBridgeInKindEnabled=true
 - variable: global.PBMSDBUserPasswordKey
   description: PBMS database user password key
   type: string
   label: PBMS Database User Password Key
   group: PBMS
+  show_if: global.g2pBridgeInKindEnabled=true
 
 # --------------------------- Infrastructure -------------------------
 - variable: global.redisInstallationName

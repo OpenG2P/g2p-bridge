@@ -56,12 +56,24 @@ class Settings(BaseSettings):
     warehouse_notification_max_attempts: int = 3
     beneficiary_notification_max_attempts: int = 3
 
-    # PBMS database connection settings
+    # In-kind disbursement support (geo/warehouse/agency). When False (the
+    # default), the Bridge runs pure digital cash transfer and does NOT touch
+    # the registry or PBMS databases.
+    in_kind_enabled: bool = False
+
+    # PBMS database connection settings (only used when in_kind_enabled is True)
     db_driver_pbms: str = "postgresql"
     db_username_pbms: str = "postgres"
     db_password_pbms: str = "postgres"
     db_hostname_pbms: str = "localhost"
     db_port_pbms: int = 5432
     db_dbname_pbms: str = "pbmsdb"
+
+    # Sponsor bank configuration for pure digital cash (in_kind_enabled False),
+    # sourced from config / Helm values instead of PBMS. Keyed by
+    # "<benefit_program_id>:<benefit_code_id>" with "default" as a fallback.
+    # Each value: {sponsor_bank_code, program_account_number,
+    #              program_account_type, program_account_branch_code}.
+    sponsor_bank_configurations: dict = {}
 
     suppress_notifications: bool = False

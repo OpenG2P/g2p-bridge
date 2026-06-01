@@ -35,15 +35,21 @@ class Initializer(BaseInitializer):
         BaseExceptionHandler()
 
         BankConnectorInitializer()
-        GeoResolversInitializer()
-        AgencyAllocatorInitializer()
-        WarehouseAllocatorInitializer()
         NotificationConnectorInitializer()
         MapperConnectorInitializer()
         MapperInitializer()
         ResolveHelper()
+        # WarehouseHelper is always needed: it provides the sponsor bank
+        # configuration for the cash path (from config when in-kind is off).
         WarehouseHelper()
-        AgencyHelper()
+
+        # In-kind only: geo/warehouse/agency connectors talk to registry/PBMS.
+        # Skipped for pure digital cash transfer.
+        if _config.in_kind_enabled:
+            GeoResolversInitializer()
+            AgencyAllocatorInitializer()
+            WarehouseAllocatorInitializer()
+            AgencyHelper()
 
 
 celery_app = Celery(

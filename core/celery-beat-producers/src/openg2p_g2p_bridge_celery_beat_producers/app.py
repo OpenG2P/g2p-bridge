@@ -28,6 +28,8 @@ celery_app = Celery(
     include=["openg2p_g2p_bridge_celery_beat_producers.tasks"],
 )
 
+# Always-scheduled tasks — the pure digital cash transfer flow. These never
+# touch the registry or PBMS databases.
 celery_app.conf.beat_schedule = {
     "mapper_resolution_beat_producer": {
         "task": "mapper_resolution_beat_producer",
@@ -49,29 +51,38 @@ celery_app.conf.beat_schedule = {
         "task": "mt940_processor_beat_producer",
         "schedule": _config.mt940_processor_frequency,
     },
-    "geo_resolution_beat_producer": {
-        "task": "geo_resolution_beat_producer",
-        "schedule": _config.geo_resolution_frequency,
-    },
-    "warehouse_allocation_beat_producer": {
-        "task": "warehouse_allocation_beat_producer",
-        "schedule": _config.warehouse_allocation_frequency,
-    },
-    "agency_allocation_beat_producer": {
-        "task": "agency_allocation_beat_producer",
-        "schedule": _config.agency_allocation_frequency,
-    },
-    "warehouse_notification_beat_producer": {
-        "task": "warehouse_notification_beat_producer",
-        "schedule": _config.warehouse_notification_frequency,
-    },
-    "agency_notification_beat_producer": {
-        "task": "agency_notification_beat_producer",
-        "schedule": _config.agency_notification_frequency,
-    },
     "beneficiary_notification_beat_producer": {
         "task": "beneficiary_notification_beat_producer",
         "schedule": _config.beneficiary_notification_frequency,
     },
 }
+
+# In-kind only: geo (registry), warehouse + agency allocation (PBMS) and their
+# notifications. Scheduled only when in-kind disbursement is enabled, so a pure
+# digital cash deployment never needs registry/PBMS.
+if _config.in_kind_enabled:
+    celery_app.conf.beat_schedule.update(
+        {
+            "geo_resolution_beat_producer": {
+                "task": "geo_resolution_beat_producer",
+                "schedule": _config.geo_resolution_frequency,
+            },
+            "warehouse_allocation_beat_producer": {
+                "task": "warehouse_allocation_beat_producer",
+                "schedule": _config.warehouse_allocation_frequency,
+            },
+            "agency_allocation_beat_producer": {
+                "task": "agency_allocation_beat_producer",
+                "schedule": _config.agency_allocation_frequency,
+            },
+            "warehouse_notification_beat_producer": {
+                "task": "warehouse_notification_beat_producer",
+                "schedule": _config.warehouse_notification_frequency,
+            },
+            "agency_notification_beat_producer": {
+                "task": "agency_notification_beat_producer",
+                "schedule": _config.agency_notification_frequency,
+            },
+        }
+    )
 celery_app.conf.timezone = "UTC"

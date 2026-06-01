@@ -35,5 +35,10 @@ class Settings(BaseSettings):
 
     no_of_tasks_to_process: int = 2
 
+    # When False (default), the Bridge runs pure digital cash transfer and the
+    # in-kind beat tasks (geo/warehouse/agency allocation + their notifications)
+    # are NOT scheduled, so registry/PBMS are never needed.
+    in_kind_enabled: bool = False
+
     process_future_disbursement_schedules: bool = False
     task_stale_threshold_minutes: int = 60  # Threshold for stale tasks
