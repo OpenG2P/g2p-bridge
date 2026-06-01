@@ -1,0 +1,178 @@
+questions:
+# ----------------------------- General -----------------------------
+- variable: global.g2pBridgeHostname
+  description: Hostname under which all Bridge services will be accessed
+  type: string
+  label: G2P Bridge Hostname
+  group: General
+
+# --------------------------- Example Bank ---------------------------
+- variable: exampleBank.enabled
+  description: Deploy the bundled Example Bank simulator (api + celery beat/worker). Disable for production.
+  type: boolean
+  default: true
+  label: Enable Example Bank
+  group: Example Bank
+- variable: global.exampleBankHostname
+  description: Hostname under which the Example Bank API is accessed
+  type: string
+  label: Example Bank Hostname
+  group: Example Bank
+  show_if: exampleBank.enabled=true
+- variable: global.g2pBridgeExampleBankBaseUrl
+  description: In-cluster base URL the Bridge uses to reach the Example Bank API
+  type: string
+  label: Example Bank In-cluster URL
+  group: Example Bank
+  show_if: exampleBank.enabled=true
+- variable: global.exampleBankDB
+  description: Example Bank database name
+  type: string
+  label: Example Bank Database
+  group: Example Bank
+  show_if: exampleBank.enabled=true
+- variable: global.exampleBankDBUser
+  description: Example Bank database user
+  type: string
+  label: Example Bank Database User
+  group: Example Bank
+  show_if: exampleBank.enabled=true
+
+# ----------------------------- Keycloak -----------------------------
+- variable: global.keycloakBaseUrl
+  description: Keycloak Base Url used in all components
+  type: string
+  label: Keycloak Base URL
+  group: Keycloak
+- variable: global.keycloakRealm
+  description: Keycloak realm in which the Bridge client lives / is created
+  type: string
+  label: Keycloak Realm
+  group: Keycloak
+- variable: global.g2pBridgeAuthClientId
+  description: OIDC Client ID
+  type: string
+  label: OIDC Client ID
+  group: Keycloak
+- variable: global.g2pBridgeAuthClientSecret
+  description: OIDC client Kubernetes secret name
+  type: string
+  label: OIDC Client Secret Name
+  group: Keycloak
+- variable: global.g2pBridgeAuthClientSecretKey
+  description: Key containing OIDC client password
+  type: string
+  label: OIDC Client Secret Key
+  group: Keycloak
+
+# ---------------------------- Keymanager ----------------------------
+- variable: global.g2pBridgeKeymanagerAuthEnabled
+  label: API Authentication Enabled
+  description: Enables Keymanager API authentication.
+  type: boolean
+  group: Keymanager
+- variable: global.g2pBridgeKeymanagerAppId
+  description: Keymanager Application ID for G2P Bridge
+  type: string
+  label: Keymanager App ID
+  group: Keymanager
+- variable: global.keymanagerInstallationName
+  description: In-cluster service name of Keymanager
+  type: string
+  label: Keymanager Service Name
+  group: Keymanager
+
+# ------------------------------- SPAR -------------------------------
+- variable: global.g2pBridgeMapperBaseUrl
+  description: Base URL to reach SPAR Mapper
+  type: string
+  label: SPAR Mapper API Base URL
+  group: SPAR
+
+# ------------------------- Bridge Database --------------------------
+- variable: global.postgresqlHost
+  description: PostgreSQL host shared by the Bridge databases
+  type: string
+  label: PostgreSQL Host
+  group: Bridge Database
+- variable: global.bridgeDB
+  description: G2P Bridge database name
+  type: string
+  label: Bridge Database
+  group: Bridge Database
+- variable: global.bridgeDBUser
+  description: G2P Bridge database user
+  type: string
+  label: Bridge Database User
+  group: Bridge Database
+- variable: global.bridgeDBSecret
+  description: G2P Bridge database user Kubernetes secret
+  type: string
+  label: Bridge Database User Secret
+  group: Bridge Database
+- variable: global.bridgeDBUserPasswordKey
+  description: G2P Bridge database user password key
+  type: string
+  label: Bridge Database User Password Key
+  group: Bridge Database
+
+# -------------------------- Registry Database -----------------------
+- variable: global.registryDBHostname
+  description: Registry database hostname
+  type: string
+  label: Registry Database Hostname
+  group: Registry
+- variable: global.registryDB
+  description: Registry Database
+  type: string
+  label: Registry Database
+  group: Registry
+- variable: global.registryDBUser
+  description: Registry database user
+  type: string
+  label: Registry Database User
+  group: Registry
+- variable: global.registryDBSecret
+  description: Registry database user Kubernetes secret
+  type: string
+  label: Registry Database User Secret
+  group: Registry
+- variable: global.registryDBUserPasswordKey
+  description: Registry database user password key
+  type: string
+  label: Registry Database User Password Key
+  group: Registry
+
+# ----------------------------- PBMS Database ------------------------
+- variable: global.PBMSDBHostname
+  description: PBMS database hostname
+  type: string
+  label: PBMS Database Hostname
+  group: PBMS
+- variable: global.PBMSDB
+  description: PBMS Database
+  type: string
+  label: PBMS Database
+  group: PBMS
+- variable: global.PBMSDBUser
+  description: PBMS database user
+  type: string
+  label: PBMS Database User
+  group: PBMS
+- variable: global.PBMSDBSecret
+  description: PBMS database user Kubernetes secret
+  type: string
+  label: PBMS Database User Secret
+  group: PBMS
+- variable: global.PBMSDBUserPasswordKey
+  description: PBMS database user password key
+  type: string
+  label: PBMS Database User Password Key
+  group: PBMS
+
+# --------------------------- Infrastructure -------------------------
+- variable: global.redisInstallationName
+  description: In-cluster Redis service name (broker/backend for celery)
+  type: string
+  label: Redis Service Name
+  group: Infrastructure

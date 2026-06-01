@@ -1,0 +1,756 @@
+global:
+  postgresqlHost: commons-postgresql
+  bridgeDB: '{{ .Release.Name }}_db'
+  bridgeDBUser: '{{ .Release.Name }}_db_user'
+  bridgeDBSecret: '{{ .Release.Name }}'
+  bridgeDBUserPasswordKey: '{{ .Release.Name }}_db_user'
+
+    # Internal service name of Keymanager
+  keymanagerInstallationName: commons-keymanager
+
+  # Default name of Redis that is installed with this chart
+  redisInstallationName: '{{ .Release.Name }}-redis-master'
+
+  g2pBridgeHostname: g2p-bridge.dev.openg2p.org
+
+  # In-cluster base URL of the G2P Bridge API service (service-to-service calls,
+  # e.g. the Example Bank uploading MT940 statements back to the Bridge).
+  g2pBridgeApiBaseUrl: 'http://{{ .Release.Name }}-api'
+
+  # Example Bank (bundled simulator). Toggle the whole simulator via exampleBank.enabled.
+  exampleBankHostname: example-bank.dev.openg2p.org
+  # In-cluster URL the Bridge uses to reach the Example Bank API.
+  g2pBridgeExampleBankBaseUrl: http://openg2p-g2p-bridge-example-bank-api
+
+  keycloakBaseUrl: https://keycloak.openg2p.org
+  keycloakRealm: master
+  keycloakIssuerUrl: '{{ tpl .Values.global.keycloakBaseUrl $ }}/realms/{{ tpl .Values.global.keycloakRealm $ }}'
+
+  g2pBridgeMapperBaseUrl: 'http://spar-mapper-api/sync'
+
+  # This is the typical default name of the client and secret
+  g2pBridgeAuthClientId: 'openg2p-g2p-bridge-{{ .Release.Namespace }}'
+  # Name of the secret in Kuberentes containing (DO NOT password directly here)
+  # Same name as client id by convension.
+  g2pBridgeAuthClientSecret: '{{ tpl .Values.global.g2pBridgeAuthClientId $ }}'
+  # Key containing client password. Hardcoded in Keycloak Init script
+  g2pBridgeAuthClientSecretKey: 'client_secret'
+
+  g2pBridgeKeymanagerAuthEnabled: false
+  g2pBridgeKeymanagerAppId: G2PBRIDGE
+
+  PBMSDBHostname: commons-postgresql
+  PBMSDB: pbms_db
+  PBMSDBUser: pbms_db_user
+  PBMSDBSecret: pbms
+  PBMSDBUserPasswordKey: pbms_db_user
+
+  registryDBHostname: commons-postgresql
+  registryDB: registry_db
+  registryDBUser: registry_db_user
+  registryDBSecret: registry
+  registryDBUserPasswordKey: registry_db_user
+
+  # Example Bank database (created via postgres-init when exampleBank.enabled).
+  exampleBankDB: example_bank_db
+  exampleBankDBUser: bankuser
+  exampleBankDBSecret: '{{ .Release.Name }}-example-bank'
+  exampleBankDBUserPasswordKey: bankuser
+
+postgres-init:
+  enabled: true
+  postgresql:
+    host: '{{ .Values.global.postgresqlHost }}'
+    port: 5432
+    # Hard coding. Same as one defined under Odoo
+    existingSecret: commons-postgresql
+    existingSecretPostgresPasswordKey: postgres-password
+  databases:
+    - name: '{{ tpl .Values.global.bridgeDB $ }}'
+      user: '{{ tpl .Values.global.bridgeDBUser $ }}'
+      secret: '{{ tpl .Values.global.bridgeDBSecret $ }}'
+      secretUserPasswordKey: '{{ tpl .Values.global.bridgeDBUserPasswordKey $ }}'
+    # Example Bank DB (the simulator is folded into this chart; this DB is
+    # created regardless of exampleBank.enabled but only used when enabled).
+    - name: '{{ tpl .Values.global.exampleBankDB $ }}'
+      user: '{{ tpl .Values.global.exampleBankDBUser $ }}'
+      secret: '{{ tpl .Values.global.exampleBankDBSecret $ }}'
+      secretUserPasswordKey: '{{ tpl .Values.global.exampleBankDBUserPasswordKey $ }}'
+
+g2pBridgeApi:
+  enabled: true
+  nameOverride: api
+  hostname: '{{ tpl .Values.global.g2pBridgeHostname $ }}'
+
+  replicaCount: 1
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 80
+    targetMemoryUtilizationPercentage: 80
+  updateStrategy:
+    type: RollingUpdate
+  serviceAccount:
+    create: false
+    name: ""
+  image:
+    repository: openg2p/openg2p-g2p-bridge-partner-api
+    tag: "develop"
+    pullPolicy: Always
+  podSecurityContext:
+    enabled: false
+    fsGroup: 1001
+  containerSecurityContext:
+    enabled: false
+    runAsUser: 1001
+    runAsNonRoot: true
+
+  openapiRootPath: /api/g2p-bridge
+
+  service:
+    type: ClusterIP
+    port: 80
+    externalTrafficPolicy: Cluster
+
+  istio:
+    enabled: true
+    virtualservice:
+      enabled: true
+      host: '{{ tpl .Values.g2pBridgeApi.hostname $ }}'
+      gateway: "internal"
+      destination: '{{ template "common.names.fullname" . }}'
+      destinationPort: 80
+      prefix: '{{ .Values.g2pBridgeApi.openapiRootPath }}'
+      rewriteUri: "/"
+    gateway:
+      enabled: false
+
+  envVars:
+    G2P_BRIDGE_DB_HOSTNAME: '{{ .Values.global.postgresqlHost }}'
+    G2P_BRIDGE_DB_DBNAME: '{{ tpl .Values.global.bridgeDB $ }}'
+    G2P_BRIDGE_DB_PORT: 5432
+    G2P_BRIDGE_DB_USERNAME: '{{ tpl .Values.global.bridgeDBUser $ }}'
+    G2P_BRIDGE_PORT: '{{ .Values.containerPort }}'
+    G2P_BRIDGE_OPENAPI_ROOT_PATH: '{{ .Values.openapiRootPath }}'
+
+    G2P_BRIDGE_JWT_VALIDATE_KEYMANAGER_APP_ID: '{{ .Values.global.g2pBridgeKeymanagerAppId }}'
+    G2P_BRIDGE_KEYMANAGER_API_BASE_URL: "http://{{ .Values.global.keymanagerInstallationName }}/v1/keymanager"
+    G2P_BRIDGE_OAUTH_ENABLED: '{{ .Values.global.g2pBridgeKeymanagerAuthEnabled }}'
+    G2P_BRIDGE_OAUTH_URL: "{{ tpl .Values.global.keycloakIssuerUrl $ }}/protocol/openid-connect/token"
+    G2P_BRIDGE_OAUTH_CLIENT_ID: '{{ tpl .Values.global.g2pBridgeAuthClientId $ }}'
+  envVarsFrom:
+    G2P_BRIDGE_DB_PASSWORD:
+      secretKeyRef:
+        name: '{{ tpl .Values.global.bridgeDBSecret $ }}'
+        key: '{{ tpl .Values.global.bridgeDBUserPasswordKey $ }}'
+    G2P_BRIDGE_OAUTH_CLIENT_SECRET:
+      secretKeyRef:
+        name: '{{ tpl .Values.global.g2pBridgeAuthClientSecret $ }}'
+        key: '{{ tpl .Values.global.g2pBridgeAuthClientSecretKey $ }}'
+
+  startupProbe:
+    enabled: true
+    httpGet:
+      path: /ping
+      port: http
+    initialDelaySeconds: 0
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 30
+    successThreshold: 1
+  livenessProbe:
+    enabled: true
+    httpGet:
+      path: /ping
+      port: http
+    initialDelaySeconds: 20
+    periodSeconds: 30
+    timeoutSeconds: 5
+    failureThreshold: 6
+    successThreshold: 1
+  readinessProbe:
+    enabled: true
+    httpGet:
+      path: /ping
+      port: http
+    initialDelaySeconds: 0
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 6
+    successThreshold: 1
+
+  postgresCheckerInit:
+    enabled: true
+    image:
+      repository: jbergknoff/postgresql-client
+      tag: latest
+      pullPolicy: IfNotPresent
+    command:
+    - 'sh'
+    args:
+    - '-c'
+    - 'until pg_isready -U ${G2P_BRIDGE_DB_USERNAME} -h ${G2P_BRIDGE_DB_HOSTNAME} -p ${G2P_BRIDGE_DB_PORT:-5432} -d ${G2P_BRIDGE_DB_DBNAME:-bridgedb}; do sleep 3; done'
+    containerSecurityContext:
+      enabled: false
+
+  postgresqlInstallationName: '{{ .Release.Name }}-postgresql'
+  containerPort: 8000
+
+openg2pG2pBridgeBenePortalApi:
+  enabled: true
+  nameOverride: bene-portal-api
+  hostname: g2p-bridge-bene-portal.openg2p.dev.net
+  replicaCount: 1
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 80
+    targetMemoryUtilizationPercentage: 80
+  updateStrategy:
+    type: RollingUpdate
+  serviceAccount:
+    create: false
+    name: ""
+  image:
+    repository: openg2p/openg2p-g2p-bridge-bene-portal-api
+    tag: "develop"
+    pullPolicy: Always
+  podSecurityContext:
+    enabled: false
+    fsGroup: 1001
+  containerSecurityContext:
+    enabled: false
+    runAsUser: 1001
+    runAsNonRoot: true
+
+  openapiRootPath: /api/bene-portal
+
+  service:
+    type: ClusterIP
+    port: 80
+    externalTrafficPolicy: Cluster
+
+  istio:
+    enabled: true
+    virtualservice:
+      enabled: true
+      host: '{{ tpl .Values.openg2pG2pBridgeBenePortalApi.hostname $ }}'
+      gateway: "internal"
+      destination: '{{ template "common.names.fullname" . }}'
+      destinationPort: 80
+      prefix: '{{ .Values.openapiRootPath }}'
+      rewriteUri: "/"
+    gateway:
+      enabled: false
+      host: '{{ tpl .Values.openg2pG2pBridgeBenePortalApi.hostname $ }}'
+      ingressController:
+        istio: ingressgateway
+      httpTlsRedirect: false
+      httpEnabled: true
+      httpsEnabled: false
+      tls:
+        mode: SIMPLE
+        credentialName: ""
+
+  envVars:
+    BRIDGE_BENE_PORTAL_API_DB_HOSTNAME: '{{ .Values.global.postgresqlHost }}'
+    BRIDGE_BENE_PORTAL_API_DB_DBNAME: '{{ tpl .Values.global.bridgeDB $ }}'
+    BRIDGE_BENE_PORTAL_API_DB_PORT: 5432
+    BRIDGE_BENE_PORTAL_API_DB_USERNAME: '{{ tpl .Values.global.bridgeDBUser $ }}'
+  envVarsFrom:
+    BRIDGE_BENE_PORTAL_API_DB_PASSWORD:
+      secretKeyRef:
+        name: '{{ tpl .Values.global.bridgeDBSecret $ }}'
+        key: '{{ tpl .Values.global.bridgeDBUserPasswordKey $ }}'
+
+  startupProbe:
+    enabled: true
+    httpGet:
+      path: /ping
+      port: http
+    initialDelaySeconds: 0
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 30
+    successThreshold: 1
+  livenessProbe:
+    enabled: true
+    httpGet:
+      path: /ping
+      port: http
+    initialDelaySeconds: 20
+    periodSeconds: 30
+    timeoutSeconds: 5
+    failureThreshold: 6
+    successThreshold: 1
+  readinessProbe:
+    enabled: true
+    httpGet:
+      path: /ping
+      port: http
+    initialDelaySeconds: 0
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 6
+    successThreshold: 1
+
+  postgresCheckerInit:
+    enabled: true
+    image:
+      repository: jbergknoff/postgresql-client
+      tag: latest
+      pullPolicy: IfNotPresent
+    command:
+    - 'sh'
+    args:
+    - '-c'
+    - 'until pg_isready -U ${BRIDGE_BENE_PORTAL_API_DB_USERNAME} -h ${BRIDGE_BENE_PORTAL_API_DB_HOSTNAME} -p ${BRIDGE_BENE_PORTAL_API_DB_PORT:-5432} -d ${BRIDGE_BENE_PORTAL_API_DB_DBNAME:-bridgedb}; do sleep 3; done'
+    containerSecurityContext:
+      enabled: false
+
+  postgresqlInstallationName: '{{ .Release.Name }}-postgresql'
+  containerPort: 8000
+
+g2pBridgeCeleryBeatProducers:
+  enabled: true
+  nameOverride: celery-beat-producer
+  replicaCount: 1
+  image:
+    repository: openg2p/openg2p-g2p-bridge-celery
+    tag: "develop"
+    pullPolicy: Always
+
+  envVars:
+    # Run the shared celery image as the beat producer.
+    CELERY_APP: openg2p_g2p_bridge_celery_beat_producers.main.celery_app
+    CELERY_OPTS: worker --beat --loglevel=info --schedule=/tmp/celery-beat-schedule.db
+
+    G2P_BRIDGE_CELERY_BEAT_DB_HOSTNAME: '{{ .Values.global.postgresqlHost }}'
+    G2P_BRIDGE_CELERY_BEAT_DB_DBNAME: '{{ tpl .Values.global.bridgeDB $ }}'
+    G2P_BRIDGE_CELERY_BEAT_DB_PORT: 5432
+    G2P_BRIDGE_CELERY_BEAT_DB_USERNAME: '{{ tpl .Values.global.bridgeDBUser $ }}'
+
+    G2P_BRIDGE_CELERY_BEAT_CELERY_BROKER_URL: redis://{{ tpl .Values.global.redisInstallationName $ }}:6379/0
+    G2P_BRIDGE_CELERY_BEAT_CELERY_BACKEND_URL: redis://{{ tpl .Values.global.redisInstallationName $ }}:6379/0
+
+    G2P_BRIDGE_CELERY_BEAT_MAPPER_RESOLVE_FREQUENCY: 30
+    G2P_BRIDGE_CELERY_BEAT_FUNDS_AVAILABLE_CHECK_FREQUENCY: 30
+    G2P_BRIDGE_CELERY_BEAT_FUNDS_BLOCKED_FREQUENCY: 30
+    G2P_BRIDGE_CELERY_BEAT_FUNDS_DISBURSEMENT_FREQUENCY: 30
+    G2P_BRIDGE_CELERY_BEAT_MT940_PROCESSOR_FREQUENCY: 30
+    G2P_BRIDGE_CELERY_BEAT_GEO_RESOLUTION_FREQUENCY: 30
+    G2P_BRIDGE_CELERY_BEAT_WAREHOUSE_ALLOCATION_FREQUENCY: 30
+    G2P_BRIDGE_CELERY_BEAT_AGENCY_ALLOCATION_FREQUENCY: 30
+    G2P_BRIDGE_CELERY_BEAT_WAREHOUSE_NOTIFICATION_FREQUENCY: 30
+    G2P_BRIDGE_CELERY_BEAT_AGENCY_NOTIFICATION_FREQUENCY: 30
+    G2P_BRIDGE_CELERY_BEAT_BENEFICIARY_NOTIFICATION_FREQUENCY: 30
+
+    G2P_BRIDGE_CELERY_BEAT_NO_OF_TASKS_TO_PROCESS: 2
+    G2P_BRIDGE_CELERY_BEAT_DISBURSEMENT_RETRY_THRESHOLD_MINUTES: 30
+    G2P_BRIDGE_CELERY_BEAT_PROCESS_FUTURE_DISBURSEMENT_SCHEDULES: true
+    G2P_BRIDGE_CELERY_BEAT_TASK_STALE_THRESHOLD_MINUTES: 30
+
+  envVarsFrom:
+    G2P_BRIDGE_CELERY_BEAT_DB_PASSWORD:
+      secretKeyRef:
+        name: '{{ tpl .Values.global.bridgeDBSecret $ }}'
+        key: '{{ tpl .Values.global.bridgeDBUserPasswordKey $ }}'
+
+  postgresCheckerInit:
+    enabled: true
+    image:
+      repository: jbergknoff/postgresql-client
+      tag: latest
+      pullPolicy: IfNotPresent
+    command:
+    - 'sh'
+    args:
+    - '-c'
+    - >-
+      until pg_isready
+      -U ${G2P_BRIDGE_CELERY_BEAT_DB_USERNAME}
+      -h ${G2P_BRIDGE_CELERY_BEAT_DB_HOSTNAME}
+      -p ${G2P_BRIDGE_CELERY_BEAT_DB_PORT:-5432}
+      -d ${G2P_BRIDGE_CELERY_BEAT_DB_DBNAME:-bridgedb};
+      do sleep 3;
+      done
+    containerSecurityContext:
+      enabled: false
+
+  serviceAccount:
+    create: false
+    name: ""
+
+g2pBridgeCeleryWorkers:
+  enabled: true
+  nameOverride: celery-worker
+  replicaCount: 1
+  image:
+    repository: openg2p/openg2p-g2p-bridge-celery
+    tag: "develop"
+    pullPolicy: Always
+
+  envVars:
+    # Run the shared celery image as the worker.
+    CELERY_APP: openg2p_g2p_bridge_celery_workers.main.celery_app
+    CELERY_OPTS: worker -Q g2p_bridge_celery_worker_tasks --loglevel=info
+
+    G2P_BRIDGE_CELERY_WORKERS_DB_HOSTNAME: '{{ .Values.global.postgresqlHost }}'
+    G2P_BRIDGE_CELERY_WORKERS_DB_DBNAME: '{{ tpl .Values.global.bridgeDB $ }}'
+    G2P_BRIDGE_CELERY_WORKERS_DB_PORT: 5432
+    G2P_BRIDGE_CELERY_WORKERS_DB_USERNAME: '{{ tpl .Values.global.bridgeDBUser $ }}'
+    G2P_BRIDGE_CELERY_WORKERS_CELERY_BROKER_URL: redis://{{ tpl .Values.global.redisInstallationName $ }}:6379/0
+    G2P_BRIDGE_CELERY_WORKERS_CELERY_BACKEND_URL: redis://{{ tpl .Values.global.redisInstallationName $ }}:6379/0
+
+    G2PCONNECT_MAPPER_CLIENT_API_BASE_URL: '{{ .Values.global.g2pBridgeMapperBaseUrl }}'
+    G2P_BRIDGE_CELERY_WORKERS_MAPPER_REQUEST_SENDER_ID: openg2p-g2p-bridge
+
+    G2P_BRIDGE_CELERY_WORKERS_KEYMANAGER_API_BASE_URL: 'http://{{ .Values.global.keymanagerInstallationName }}/v1/keymanager'
+    G2P_BRIDGE_CELERY_WORKERS_KEYMANAGER_SIGN_APP_ID: '{{ .Values.global.g2pBridgeKeymanagerAppId }}'
+    G2P_BRIDGE_CELERY_WORKERS_OAUTH_ENABLED: '{{ .Values.global.g2pBridgeKeymanagerAuthEnabled }}'
+    G2P_BRIDGE_CELERY_WORKERS_OAUTH_URL: '{{ tpl .Values.global.keycloakIssuerUrl $ }}/protocol/openid-connect/token'
+    G2P_BRIDGE_CELERY_WORKERS_OAUTH_CLIENT_ID: '{{ tpl .Values.global.g2pBridgeAuthClientId $ }}'
+    G2P_BRIDGE_CELERY_WORKERS_DB_HOSTNAME_PBMS: "{{ tpl .Values.global.PBMSDBHostname $ }}"
+    G2P_BRIDGE_CELERY_WORKERS_DB_DBNAME_PBMS: '{{ tpl .Values.global.PBMSDB $ }}'
+    G2P_BRIDGE_CELERY_WORKERS_DB_PORT_PBMS: 5432
+    G2P_BRIDGE_CELERY_WORKERS_DB_USERNAME_PBMS: '{{ tpl .Values.global.PBMSDBUser $ }}'
+
+    G2PCONNECT_MAPPER_LINK_CLIENT_API_SIGN_ENABLED: false
+    G2PCONNECT_MAPPER_UPDATE_CLIENT_API_SIGN_ENABLED: false
+    G2PCONNECT_MAPPER_RESOLVE_CLIENT_API_SIGN_ENABLED: false
+    G2PCONNECT_MAPPER_UNLINK_CLIENT_API_SIGN_ENABLED: false
+
+    G2P_BRIDGE_CELERY_WORKERS_FUNDS_AVAILABLE_CHECK_URL_EXAMPLE_BANK: '{{ tpl .Values.global.g2pBridgeExampleBankBaseUrl $ }}/check_funds'
+    G2P_BRIDGE_CELERY_WORKERS_FUNDS_BLOCK_URL_EXAMPLE_BANK: '{{ tpl .Values.global.g2pBridgeExampleBankBaseUrl $ }}/block_funds'
+    G2P_BRIDGE_CELERY_WORKERS_FUNDS_DISBURSEMENT_URL_EXAMPLE_BANK: '{{ tpl .Values.global.g2pBridgeExampleBankBaseUrl $ }}/initiate_payment'
+    G2P_BRIDGE_CELERY_WORKERS_BANK_SIMULATOR_CODE: EXAMPLE
+
+    G2P_BRIDGE_AGENCY_ALLOCATOR_DB_USERNAME_PBMS: '{{ tpl .Values.global.PBMSDBUser $ }}'
+    G2P_BRIDGE_AGENCY_ALLOCATOR_DB_HOSTNAME_PBMS: "{{ tpl .Values.global.PBMSDBHostname $ }}"
+    G2P_BRIDGE_AGENCY_ALLOCATOR_DB_PORT_PBMS: 5432
+    G2P_BRIDGE_AGENCY_ALLOCATOR_DB_DBNAME_PBMS: '{{ tpl .Values.global.PBMSDB $ }}'
+
+    G2P_BRIDGE_WAREHOUSE_ALLOCATOR_DB_USERNAME_PBMS: '{{ tpl .Values.global.PBMSDBUser $ }}'
+    G2P_BRIDGE_WAREHOUSE_ALLOCATOR_DB_HOSTNAME_PBMS: "{{ tpl .Values.global.PBMSDBHostname $ }}"
+    G2P_BRIDGE_WAREHOUSE_ALLOCATOR_DB_PORT_PBMS: 5432
+    G2P_BRIDGE_WAREHOUSE_ALLOCATOR_DB_DBNAME_PBMS: '{{ tpl .Values.global.PBMSDB $ }}'
+
+    G2P_BRIDGE_GEO_RESOLVER_DB_USERNAME_REGISTRY: '{{ tpl .Values.global.registryDBUser $ }}'
+    G2P_BRIDGE_GEO_RESOLVER_DB_HOSTNAME_REGISTRY: "{{ tpl .Values.global.registryDBHostname $ }}"
+    G2P_BRIDGE_GEO_RESOLVER_DB_PORT_REGISTRY: 5432
+    G2P_BRIDGE_GEO_RESOLVER_DB_DBNAME_REGISTRY: '{{ tpl .Values.global.registryDB $ }}'
+
+    G2P_BRIDGE_MAPPER_CONNECTORS_DB_USERNAME_REGISTRY: '{{ tpl .Values.global.registryDBUser $ }}'
+    G2P_BRIDGE_MAPPER_CONNECTORS_DB_HOSTNAME_REGISTRY: "{{ tpl .Values.global.registryDBHostname $ }}"
+    G2P_BRIDGE_MAPPER_CONNECTORS_DB_PORT_REGISTRY: 5432
+    G2P_BRIDGE_MAPPER_CONNECTORS_DB_DBNAME_REGISTRY:  '{{ tpl .Values.global.registryDB $ }}'
+
+    G2P_BRIDGE_CELERY_WORKERS_SUPPRESS_NOTIFICATIONS: true
+
+    G2P_BRIDGE_CELERY_WORKERS_AGENCY_ALLOCATION_MAX_ATTEMPTS: 3
+    G2P_BRIDGE_CELERY_WORKERS_WAREHOUSE_ALLOCATION_MAX_ATTEMPTS: 3
+    G2P_BRIDGE_CELERY_WORKERS_GEO_RESOLUTION_MAX_ATTEMPTS: 3
+    G2P_BRIDGE_CELERY_WORKERS_MAPPER_RESOLUTION_MAX_ATTEMPTS: 3
+    G2P_BRIDGE_CELERY_WORKERS_CHECK_FUNDS_WITH_BANK_MAX_ATTEMPTS: 3
+    G2P_BRIDGE_CELERY_WORKERS_BLOCK_FUNDS_WITH_BANK_MAX_ATTEMPTS: 3
+    G2P_BRIDGE_CELERY_WORKERS_DISBURSE_FUNDS_WITH_BANK_MAX_ATTEMPTS: 3
+    G2P_BRIDGE_CELERY_WORKERS_MT940_PROCESSOR_MAX_ATTEMPTS: 3
+    G2P_BRIDGE_CELERY_WORKERS_AGENCY_NOTIFICATION_MAX_ATTEMPTS: 3
+    G2P_BRIDGE_CELERY_WORKERS_WAREHOUSE_NOTIFICATION_MAX_ATTEMPTS: 3
+    G2P_BRIDGE_CELERY_WORKERS_BENEFICIARY_NOTIFICATION_MAX_ATTEMPTS: 3
+
+  envVarsFrom:
+    G2P_BRIDGE_CELERY_WORKERS_DB_PASSWORD:
+      secretKeyRef:
+        name: '{{ tpl .Values.global.bridgeDBSecret $ }}'
+        key: '{{ tpl .Values.global.bridgeDBUserPasswordKey $ }}'
+    G2P_BRIDGE_CELERY_WORKERS_DB_PASSWORD_PBMS:
+      secretKeyRef:
+        name: '{{ tpl .Values.global.PBMSDBSecret $ }}'
+        key: '{{ tpl .Values.global.PBMSDBUserPasswordKey $ }}'
+    G2P_BRIDGE_WAREHOUSE_ALLOCATOR_DB_PASSWORD_PBMS:
+      secretKeyRef:
+        name: '{{ tpl .Values.global.PBMSDBSecret $ }}'
+        key: '{{ tpl .Values.global.PBMSDBUserPasswordKey $ }}'
+    G2P_BRIDGE_GEO_RESOLVER_DB_PASSWORD_REGISTRY:
+      secretKeyRef:
+        name: '{{ tpl .Values.global.registryDBSecret $ }}'
+        key: '{{ tpl .Values.global.registryDBUserPasswordKey $ }}'
+    G2P_BRIDGE_MAPPER_CONNECTORS_DB_PASSWORD_REGISTRY:
+      secretKeyRef:
+        name: '{{ tpl .Values.global.registryDBSecret $ }}'
+        key: '{{ tpl .Values.global.registryDBUserPasswordKey $ }}'
+    G2P_BRIDGE_AGENCY_ALLOCATOR_DB_PASSWORD_PBMS:
+      secretKeyRef:
+        name: '{{ tpl .Values.global.PBMSDBSecret $ }}'
+        key: '{{ tpl .Values.global.PBMSDBUserPasswordKey $ }}'
+    G2P_BRIDGE_CELERY_WORKERS_OAUTH_CLIENT_SECRET:
+      secretKeyRef:
+        name: '{{ tpl .Values.global.g2pBridgeAuthClientSecret $ }}'
+        key: '{{ tpl .Values.global.g2pBridgeAuthClientSecretKey $ }}'
+
+  postgresCheckerInit:
+    enabled: true
+    image:
+      repository: jbergknoff/postgresql-client
+      tag: latest
+      pullPolicy: IfNotPresent
+    command:
+    - 'sh'
+    args:
+    - '-c'
+    - >-
+      until pg_isready
+      -U ${G2P_BRIDGE_CELERY_WORKERS_DB_USERNAME}
+      -h ${G2P_BRIDGE_CELERY_WORKERS_DB_HOSTNAME}
+      -p ${G2P_BRIDGE_CELERY_WORKERS_DB_PORT:-5432}
+      -d ${G2P_BRIDGE_CELERY_WORKERS_DB_DBNAME:-bridgedb};
+      do sleep 3;
+      done
+    containerSecurityContext:
+      enabled: false
+
+  postgresqlInstallationName: '{{ .Release.Name }}-postgresql'
+  podSecurityContext:
+    enabled: false
+    fsGroup: 1001
+  containerSecurityContext:
+    enabled: false
+    runAsUser: 1001
+    runAsNonRoot: true
+  serviceAccount:
+    create: false
+    name: ""
+
+redis:
+  enabled: true
+  architecture: standalone
+  master:
+    persistence:
+      enabled: false
+  auth:
+    enabled: false
+
+# ---------------------------------------------------------------------------
+# Example Bank simulator (bundled). Set exampleBank.enabled=false to skip the
+# entire simulator (api + celery beat/worker). Its DB (example_bank_db) is
+# provisioned via postgres-init above and it reuses this chart's Redis.
+# ---------------------------------------------------------------------------
+exampleBank:
+  enabled: true
+
+exampleBankApi:
+  nameOverride: openg2p-g2p-bridge-example-bank-api
+  fullnameOverride: openg2p-g2p-bridge-example-bank-api
+  hostname: '{{ tpl .Values.global.exampleBankHostname $ }}'
+  replicaCount: 1
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 1
+    targetCPUUtilizationPercentage: 80
+    targetMemoryUtilizationPercentage: 80
+  updateStrategy:
+    type: RollingUpdate
+  serviceAccount:
+    create: true
+    name: ""
+  image:
+    repository: openg2p/openg2p-g2p-bridge-example-bank-api
+    tag: "develop"
+    pullPolicy: Always
+  podSecurityContext:
+    enabled: false
+    fsGroup: 1001
+  containerSecurityContext:
+    enabled: false
+    runAsUser: 1001
+    runAsNonRoot: true
+
+  openapiRootPath: /api/example-bank
+  containerPort: 8000
+
+  service:
+    type: ClusterIP
+    port: 80
+    externalTrafficPolicy: Cluster
+
+  istio:
+    enabled: true
+    virtualservice:
+      enabled: true
+      host: '{{ tpl .Values.exampleBankApi.hostname $ }}'
+      gateway: "internal"
+      destination: openg2p-g2p-bridge-example-bank-api
+      destinationPort: 80
+      prefix: /api/example-bank/
+      rewriteUri: "/"
+    gateway:
+      enabled: false
+
+  envVars:
+    EXAMPLE_BANK_DB_HOSTNAME: '{{ .Values.global.postgresqlHost }}'
+    EXAMPLE_BANK_DB_DBNAME: '{{ tpl .Values.global.exampleBankDB $ }}'
+    EXAMPLE_BANK_DB_PORT: 5432
+    EXAMPLE_BANK_DB_USERNAME: '{{ tpl .Values.global.exampleBankDBUser $ }}'
+    EXAMPLE_BANK_WORKER_TYPE: gunicorn
+    EXAMPLE_BANK_HOST: 0.0.0.0
+    EXAMPLE_BANK_PORT: '{{ .Values.containerPort }}'
+    EXAMPLE_BANK_NO_OF_WORKERS: '1'
+    EXAMPLE_BANK_OPENAPI_ROOT_PATH: '{{ .Values.openapiRootPath }}'
+    EXAMPLE_BANK_CELERY_BROKER_URL: redis://{{ tpl .Values.global.redisInstallationName $ }}:6379/0
+    EXAMPLE_BANK_CELERY_BACKEND_URL: redis://{{ tpl .Values.global.redisInstallationName $ }}:6379/0
+  envVarsFrom:
+    EXAMPLE_BANK_DB_PASSWORD:
+      secretKeyRef:
+        name: '{{ tpl .Values.global.exampleBankDBSecret $ }}'
+        key: '{{ tpl .Values.global.exampleBankDBUserPasswordKey $ }}'
+
+  startupProbe:
+    enabled: true
+    httpGet:
+      path: /ping
+      port: http
+    initialDelaySeconds: 0
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 30
+    successThreshold: 1
+  livenessProbe:
+    enabled: true
+    httpGet:
+      path: /ping
+      port: http
+    initialDelaySeconds: 20
+    periodSeconds: 30
+    timeoutSeconds: 5
+    failureThreshold: 6
+    successThreshold: 1
+  readinessProbe:
+    enabled: true
+    httpGet:
+      path: /ping
+      port: http
+    initialDelaySeconds: 0
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 6
+    successThreshold: 1
+
+  postgresCheckerInit:
+    enabled: true
+    image:
+      repository: jbergknoff/postgresql-client
+      tag: latest
+      pullPolicy: IfNotPresent
+    command:
+    - 'sh'
+    args:
+    - '-c'
+    - 'until pg_isready -U ${EXAMPLE_BANK_DB_USERNAME} -h ${EXAMPLE_BANK_DB_HOSTNAME} -p ${EXAMPLE_BANK_DB_PORT:-5432} -d ${EXAMPLE_BANK_DB_DBNAME:-example_bank_db}; do sleep 3; done'
+    containerSecurityContext:
+      enabled: false
+
+exampleBankCeleryBeat:
+  nameOverride: example-bank-celery-beat-producer
+  replicaCount: 1
+  serviceAccount:
+    create: true
+    name: ""
+  image:
+    repository: openg2p/openg2p-example-bank-celery-beat-producers
+    tag: "develop"
+    pullPolicy: Always
+  podSecurityContext:
+    enabled: false
+    fsGroup: 1001
+  containerSecurityContext:
+    enabled: false
+    runAsUser: 1001
+    runAsNonRoot: true
+
+  envVars:
+    EXAMPLE_BANK_CELERY_DB_HOSTNAME: '{{ .Values.global.postgresqlHost }}'
+    EXAMPLE_BANK_CELERY_DB_DBNAME: '{{ tpl .Values.global.exampleBankDB $ }}'
+    EXAMPLE_BANK_CELERY_DB_PORT: 5432
+    EXAMPLE_BANK_CELERY_DB_USERNAME: '{{ tpl .Values.global.exampleBankDBUser $ }}'
+    EXAMPLE_BANK_CELERY_WORKER_TYPE: gunicorn
+    EXAMPLE_BANK_CELERY_HOST: 0.0.0.0
+    EXAMPLE_BANK_CELERY_PORT: '8000'
+    EXAMPLE_BANK_CELERY_NO_OF_WORKERS: '1'
+    EXAMPLE_BANK_CELERY_PROCESS_PAYMENT_FREQUENCY: 10
+    EXAMPLE_BANK_CELERY_CELERY_BROKER_URL: redis://{{ tpl .Values.global.redisInstallationName $ }}:6379/0
+    EXAMPLE_BANK_CELERY_CELERY_BACKEND_URL: redis://{{ tpl .Values.global.redisInstallationName $ }}:6379/0
+  envVarsFrom:
+    EXAMPLE_BANK_CELERY_DB_PASSWORD:
+      secretKeyRef:
+        name: '{{ tpl .Values.global.exampleBankDBSecret $ }}'
+        key: '{{ tpl .Values.global.exampleBankDBUserPasswordKey $ }}'
+
+  postgresCheckerInit:
+    enabled: true
+    image:
+      repository: jbergknoff/postgresql-client
+      tag: latest
+      pullPolicy: IfNotPresent
+    command:
+    - 'sh'
+    args:
+    - '-c'
+    - 'until pg_isready -U ${EXAMPLE_BANK_CELERY_DB_USERNAME} -h ${EXAMPLE_BANK_CELERY_DB_HOSTNAME} -p ${EXAMPLE_BANK_CELERY_DB_PORT:-5432} -d ${EXAMPLE_BANK_CELERY_DB_DBNAME:-example_bank_db}; do sleep 3; done'
+    containerSecurityContext:
+      enabled: false
+
+exampleBankCeleryWorker:
+  nameOverride: example-bank-celery-worker
+  replicaCount: 1
+  serviceAccount:
+    create: true
+    name: ""
+  image:
+    repository: openg2p/openg2p-example-bank-celery-workers
+    tag: "develop"
+    pullPolicy: Always
+  podSecurityContext:
+    enabled: false
+    fsGroup: 1001
+  containerSecurityContext:
+    enabled: false
+    runAsUser: 1001
+    runAsNonRoot: true
+
+  envVars:
+    EXAMPLE_BANK_CELERY_DB_HOSTNAME: '{{ .Values.global.postgresqlHost }}'
+    EXAMPLE_BANK_CELERY_DB_DBNAME: '{{ tpl .Values.global.exampleBankDB $ }}'
+    EXAMPLE_BANK_CELERY_DB_PORT: 5432
+    EXAMPLE_BANK_CELERY_DB_USERNAME: '{{ tpl .Values.global.exampleBankDBUser $ }}'
+    EXAMPLE_BANK_CELERY_WORKER_TYPE: gunicorn
+    EXAMPLE_BANK_CELERY_HOST: 0.0.0.0
+    EXAMPLE_BANK_CELERY_PORT: '8000'
+    EXAMPLE_BANK_CELERY_NO_OF_WORKERS: '1'
+    EXAMPLE_BANK_CELERY_PROCESS_PAYMENT_FREQUENCY: 10
+    EXAMPLE_BANK_CELERY_CELERY_BROKER_URL: redis://{{ tpl .Values.global.redisInstallationName $ }}:6379/0
+    EXAMPLE_BANK_CELERY_CELERY_BACKEND_URL: redis://{{ tpl .Values.global.redisInstallationName $ }}:6379/0
+    # Example Bank uploads MT940 statements back to the Bridge API.
+    EXAMPLE_BANK_CELERY_MT940_STATEMENT_CALLBACK_URL: '{{ tpl .Values.global.g2pBridgeApiBaseUrl $ }}/upload_mt940'
+  envVarsFrom:
+    EXAMPLE_BANK_CELERY_DB_PASSWORD:
+      secretKeyRef:
+        name: '{{ tpl .Values.global.exampleBankDBSecret $ }}'
+        key: '{{ tpl .Values.global.exampleBankDBUserPasswordKey $ }}'
+
+  postgresCheckerInit:
+    enabled: true
+    image:
+      repository: jbergknoff/postgresql-client
+      tag: latest
+      pullPolicy: IfNotPresent
+    command:
+    - 'sh'
+    args:
+    - '-c'
+    - 'until pg_isready -U ${EXAMPLE_BANK_CELERY_DB_USERNAME} -h ${EXAMPLE_BANK_CELERY_DB_HOSTNAME} -p ${EXAMPLE_BANK_CELERY_DB_PORT:-5432} -d ${EXAMPLE_BANK_CELERY_DB_DBNAME:-example_bank_db}; do sleep 3; done'
+    containerSecurityContext:
+      enabled: false
