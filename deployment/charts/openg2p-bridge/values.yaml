@@ -1,29 +1,35 @@
 global:
+  # Namespace/environment segment that all ingress hostnames below are derived
+  # from (defaults to the 'trial' namespace). Override per environment.
+  namespace: trial
+
   postgresqlHost: commons-postgresql
   bridgeDB: '{{ .Release.Name }}_db'
   bridgeDBUser: '{{ .Release.Name }}_db_user'
   bridgeDBSecret: '{{ .Release.Name }}'
   bridgeDBUserPasswordKey: '{{ .Release.Name }}_db_user'
 
-    # Internal service name of Keymanager
-  keymanagerInstallationName: commons-keymanager
+    # Internal service name of Keymanager (same as NSR)
+  keymanagerInstallationName: commons-services-keymanager
 
   # Default name of Redis that is installed with this chart
   redisInstallationName: '{{ .Release.Name }}-redis-master'
 
-  g2pBridgeHostname: g2p-bridge.dev.openg2p.org
+  g2pBridgeHostname: 'g2p-bridge.{{ .Values.global.namespace }}.openg2p.org'
+  benePortalHostname: 'g2p-bridge-bene-portal.{{ .Values.global.namespace }}.openg2p.org'
 
   # In-cluster base URL of the G2P Bridge API service (service-to-service calls,
   # e.g. the Example Bank uploading MT940 statements back to the Bridge).
   g2pBridgeApiBaseUrl: 'http://{{ .Release.Name }}-api'
 
   # Example Bank (bundled simulator). Toggle the whole simulator via exampleBank.enabled.
-  exampleBankHostname: example-bank.dev.openg2p.org
+  exampleBankHostname: 'example-bank.{{ .Values.global.namespace }}.openg2p.org'
   # In-cluster URL the Bridge uses to reach the Example Bank API.
   g2pBridgeExampleBankBaseUrl: http://openg2p-g2p-bridge-example-bank-api
 
-  keycloakBaseUrl: https://keycloak.openg2p.org
-  keycloakRealm: master
+  # Keycloak is per-namespace (commons layer in this namespace), same as NSR.
+  keycloakBaseUrl: 'https://keycloak.{{ .Values.global.namespace }}.openg2p.org'
+  keycloakRealm: staff
   keycloakIssuerUrl: '{{ tpl .Values.global.keycloakBaseUrl $ }}/realms/{{ tpl .Values.global.keycloakRealm $ }}'
 
   g2pBridgeMapperBaseUrl: 'http://spar-mapper-api/sync'
@@ -37,7 +43,7 @@ global:
   g2pBridgeAuthClientSecretKey: 'client_secret'
 
   g2pBridgeKeymanagerAuthEnabled: false
-  g2pBridgeKeymanagerAppId: G2PBRIDGE
+  g2pBridgeKeymanagerAppId: OPENG2P_BRIDGE
 
   PBMSDBHostname: commons-postgresql
   PBMSDB: pbms_db
@@ -200,7 +206,7 @@ g2pBridgeApi:
 openg2pG2pBridgeBenePortalApi:
   enabled: true
   nameOverride: bene-portal-api
-  hostname: g2p-bridge-bene-portal.openg2p.dev.net
+  hostname: '{{ tpl .Values.global.benePortalHostname $ }}'
   replicaCount: 1
   autoscaling:
     enabled: false

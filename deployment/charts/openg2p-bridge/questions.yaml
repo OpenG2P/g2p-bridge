@@ -1,9 +1,19 @@
 questions:
 # ----------------------------- General -----------------------------
+- variable: global.namespace
+  description: Namespace/environment segment used to derive all ingress hostnames (e.g. g2p-bridge.<namespace>.openg2p.org)
+  type: string
+  label: Namespace
+  group: General
 - variable: global.g2pBridgeHostname
-  description: Hostname under which all Bridge services will be accessed
+  description: Hostname for the G2P Bridge partner API
   type: string
   label: G2P Bridge Hostname
+  group: General
+- variable: global.benePortalHostname
+  description: Hostname for the G2P Bridge beneficiary portal API
+  type: string
+  label: Bene Portal Hostname
   group: General
 
 # --------------------------- Example Bank ---------------------------
