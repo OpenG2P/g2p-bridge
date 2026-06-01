@@ -128,7 +128,8 @@ g2pBridgeApi:
       enabled: true
       host: '{{ tpl .Values.g2pBridgeApi.hostname $ }}'
       gateway: "internal"
-      destination: '{{ template "common.names.fullname" . }}'
+      # Route to this component's own Service ({release}-{nameOverride}).
+      destination: '{{ .Release.Name }}-api'
       destinationPort: 80
       prefix: '{{ .Values.g2pBridgeApi.openapiRootPath }}'
       rewriteUri: "/"
@@ -202,8 +203,6 @@ g2pBridgeApi:
     - 'until pg_isready -U ${G2P_BRIDGE_DB_USERNAME} -h ${G2P_BRIDGE_DB_HOSTNAME} -p ${G2P_BRIDGE_DB_PORT:-5432} -d ${G2P_BRIDGE_DB_DBNAME:-bridgedb}; do sleep 3; done'
     containerSecurityContext:
       enabled: false
-
-  postgresqlInstallationName: '{{ .Release.Name }}-postgresql'
   containerPort: 8000
 
 openg2pG2pBridgeBenePortalApi:
@@ -247,9 +246,10 @@ openg2pG2pBridgeBenePortalApi:
       enabled: true
       host: '{{ tpl .Values.openg2pG2pBridgeBenePortalApi.hostname $ }}'
       gateway: "internal"
-      destination: '{{ template "common.names.fullname" . }}'
+      # Route to this component's own Service ({release}-{nameOverride}).
+      destination: '{{ .Release.Name }}-bene-portal-api'
       destinationPort: 80
-      prefix: '{{ .Values.openapiRootPath }}'
+      prefix: '{{ .Values.openg2pG2pBridgeBenePortalApi.openapiRootPath }}'
       rewriteUri: "/"
     gateway:
       enabled: false
@@ -318,8 +318,6 @@ openg2pG2pBridgeBenePortalApi:
     - 'until pg_isready -U ${BRIDGE_BENE_PORTAL_API_DB_USERNAME} -h ${BRIDGE_BENE_PORTAL_API_DB_HOSTNAME} -p ${BRIDGE_BENE_PORTAL_API_DB_PORT:-5432} -d ${BRIDGE_BENE_PORTAL_API_DB_DBNAME:-bridgedb}; do sleep 3; done'
     containerSecurityContext:
       enabled: false
-
-  postgresqlInstallationName: '{{ .Release.Name }}-postgresql'
   containerPort: 8000
 
 g2pBridgeCeleryBeatProducers:
@@ -520,8 +518,6 @@ g2pBridgeCeleryWorkers:
       done
     containerSecurityContext:
       enabled: false
-
-  postgresqlInstallationName: '{{ .Release.Name }}-postgresql'
   podSecurityContext:
     enabled: false
     fsGroup: 1001
