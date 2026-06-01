@@ -167,7 +167,7 @@ g2pBridgeApi:
       # Route to this component's own Service ({release}-{nameOverride}).
       destination: '{{ .Release.Name }}-api'
       destinationPort: 80
-      prefix: '{{ .Values.g2pBridgeApi.openapiRootPath }}'
+      prefix: '{{ .Values.g2pBridgeApi.openapiRootPath }}/'
       rewriteUri: "/"
     gateway:
       enabled: false
@@ -288,7 +288,7 @@ openg2pG2pBridgeBenePortalApi:
       # Route to this component's own Service ({release}-{nameOverride}).
       destination: '{{ .Release.Name }}-bene-portal-api'
       destinationPort: 80
-      prefix: '{{ .Values.openg2pG2pBridgeBenePortalApi.openapiRootPath }}'
+      prefix: '{{ .Values.openg2pG2pBridgeBenePortalApi.openapiRootPath }}/'
       rewriteUri: "/"
     gateway:
       enabled: false
