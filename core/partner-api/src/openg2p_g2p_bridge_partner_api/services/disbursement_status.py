@@ -64,7 +64,9 @@ class DisbursementStatusService(BaseService):
                 _logger.error("Error in getting disbursement status")
                 raise e
 
-    async def get_disbursement_recon_records(self, session, reconciliation_id: str) -> DisbursementReconRecords:
+    async def get_disbursement_recon_records(
+        self, session, reconciliation_id: str
+    ) -> DisbursementReconRecords:
         _logger.info(f"Getting disbursement recon records for reconciliation ID: {reconciliation_id}")
         disbursement_recon_payloads = []
         disbursement_error_recon_payloads = []
