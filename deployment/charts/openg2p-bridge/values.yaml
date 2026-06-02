@@ -481,10 +481,19 @@ g2pBridgeCeleryWorkers:
     G2PCONNECT_MAPPER_RESOLVE_CLIENT_API_SIGN_ENABLED: false
     G2PCONNECT_MAPPER_UNLINK_CLIENT_API_SIGN_ENABLED: false
 
-    G2P_BRIDGE_CELERY_WORKERS_FUNDS_AVAILABLE_CHECK_URL_EXAMPLE_BANK: '{{ tpl .Values.global.g2pBridgeExampleBankBaseUrl $ }}/check_funds'
-    G2P_BRIDGE_CELERY_WORKERS_FUNDS_BLOCK_URL_EXAMPLE_BANK: '{{ tpl .Values.global.g2pBridgeExampleBankBaseUrl $ }}/block_funds'
-    G2P_BRIDGE_CELERY_WORKERS_FUNDS_DISBURSEMENT_URL_EXAMPLE_BANK: '{{ tpl .Values.global.g2pBridgeExampleBankBaseUrl $ }}/initiate_payment'
-    G2P_BRIDGE_CELERY_WORKERS_BANK_SIMULATOR_CODE: EXAMPLE-BANK
+    # Bank connectors (read by ExampleBankConnector — see core/celery-workers/.env.example)
+    G2P_BRIDGE_BANK_CONNECTORS_FUNDS_AVAILABLE_CHECK_URL_EXAMPLE_BANK: '{{ tpl .Values.global.g2pBridgeExampleBankBaseUrl $ }}/check_funds'
+    G2P_BRIDGE_BANK_CONNECTORS_FUNDS_BLOCK_URL_EXAMPLE_BANK: '{{ tpl .Values.global.g2pBridgeExampleBankBaseUrl $ }}/block_funds'
+    G2P_BRIDGE_BANK_CONNECTORS_FUNDS_DISBURSEMENT_URL_EXAMPLE_BANK: '{{ tpl .Values.global.g2pBridgeExampleBankBaseUrl $ }}/initiate_payment'
+    G2P_BRIDGE_BANK_CONNECTORS_BANK_SIMULATOR_CODE: EXAMPLE-BANK
+
+    G2P_BRIDGE_CELERY_WORKERS_MAPPER_REQUEST_JWT_ENABLED: false
+    G2P_BRIDGE_CELERY_WORKERS_BANK_FA_DECONSTRUCT_STRATEGY: '^account_number:(?P<account_number>.*)\.branch_code:(?P<branch_code>.*)\.bank_code:(?P<bank_code>.*)\.mobile_number:(?P<mobile_number>.*)\.email_address:(?P<email_address>.*)\.fa_type:(?P<fa_type>.*)$'
+    G2P_BRIDGE_CELERY_WORKERS_MOBILE_WALLET_DECONSTRUCT_STRATEGY: '^mobile_number:(?P<mobile_number>.*)\.wallet_provider_name:(?P<wallet_provider_name>.*)\.wallet_provider_code:(?P<wallet_provider_code>.*)\.fa_type:(?P<fa_type>.*)$'
+    G2P_BRIDGE_CELERY_WORKERS_EMAIL_WALLET_DECONSTRUCT_STRATEGY: '^email_address:(?P<email_address>.*)\.wallet_provider_name:(?P<wallet_provider_name>.*)\.wallet_provider_code:(?P<wallet_provider_code>.*)\.fa_type:(?P<fa_type>.*)$'
+    G2P_BRIDGE_CELERY_WORKERS_SIGN_KEY_KEYMANAGER_APP_ID: '{{ .Values.global.g2pBridgeKeymanagerAppId }}'
+    G2P_BRIDGE_CELERY_WORKERS_SIGN_KEY_KEYMANAGER_REF_ID: ''
+    G2P_BRIDGE_CELERY_WORKERS_KEYMANAGER_API_TIMEOUT: 10
 
     G2P_BRIDGE_AGENCY_ALLOCATOR_DB_USERNAME_PBMS: '{{ tpl .Values.global.PBMSDBUser $ }}'
     G2P_BRIDGE_AGENCY_ALLOCATOR_DB_HOSTNAME_PBMS: "{{ tpl .Values.global.PBMSDBHostname $ }}"
