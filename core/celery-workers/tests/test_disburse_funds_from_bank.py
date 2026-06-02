@@ -61,7 +61,7 @@ class MockSession:
             program_account_number="test_account_number",
             program_account_type=None,
             program_account_branch_code="test_branch",
-            sponsor_bank_code="EXAMPLE",
+            sponsor_bank_code="EXAMPLE-BANK",
         )
         self.disbursement = Disbursement(
             id="test_disbursement_id",
@@ -205,7 +205,7 @@ def get_mock_warehouse_helper():
         program_account_number="test_account_number",
         program_account_type=None,
         program_account_branch_code="test_branch",
-        sponsor_bank_code="EXAMPLE",
+        sponsor_bank_code="EXAMPLE-BANK",
     )
     return mock_warehouse_helper
 
