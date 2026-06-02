@@ -182,6 +182,10 @@ g2pBridgeApi:
 
     G2P_BRIDGE_JWT_VALIDATE_KEYMANAGER_APP_ID: '{{ .Values.global.g2pBridgeKeymanagerAppId }}'
     G2P_BRIDGE_KEYMANAGER_API_BASE_URL: "http://{{ .Values.global.keymanagerInstallationName }}/v1/keymanager"
+    # Inbound partner-signature enforcement on the Partner API endpoints. When
+    # false, the API skips JWT signature validation (no signed header required);
+    # set true in production. Same switch also drives outbound OAuth below.
+    G2P_BRIDGE_KEYMANAGER_AUTH_ENABLED: '{{ .Values.global.g2pBridgeKeymanagerAuthEnabled }}'
     G2P_BRIDGE_OAUTH_ENABLED: '{{ .Values.global.g2pBridgeKeymanagerAuthEnabled }}'
     G2P_BRIDGE_OAUTH_URL: "{{ tpl .Values.global.keycloakIssuerUrl $ }}/protocol/openid-connect/token"
     G2P_BRIDGE_OAUTH_CLIENT_ID: '{{ tpl .Values.global.g2pBridgeAuthClientId $ }}'

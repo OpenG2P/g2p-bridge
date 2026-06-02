@@ -12,6 +12,15 @@ _logger = logging.getLogger(_config.logging_default_logger_name)
 
 class RequestValidation(BaseService):
     def validate_signature(self, is_signature_valid) -> None:
+        # Inbound partner-signature enforcement is gated by keymanager_auth_enabled.
+        # When disabled (e.g. pure digital-cash demo), skip the check entirely so
+        # callers need not send a signed Signature header. Enable in production.
+        if not _config.keymanager_auth_enabled:
+            _logger.info(
+                "Keymanager auth disabled; skipping JWT signature validation"
+            )
+            return None
+
         _logger.info("Validating signature")
         if not is_signature_valid:
             _logger.error("Invalid JWT signature")
