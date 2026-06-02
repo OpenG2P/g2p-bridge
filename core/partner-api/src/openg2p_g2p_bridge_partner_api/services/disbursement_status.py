@@ -81,7 +81,7 @@ class DisbursementStatusService(BaseService):
         for disbursement_recon_payload in disbursement_recon_payloads_from_db:
             disbursement_recon_payloads.append(
                 DisbursementReconPayload(
-                    bank_disbursement_batch_id=disbursement_recon_payload.bank_disbursement_batch_id,
+                    disbursement_batch_control_id=disbursement_recon_payload.disbursement_batch_control_id,
                     disbursement_id=disbursement_recon_payload.disbursement_id,
                     disbursement_envelope_id=disbursement_recon_payload.disbursement_envelope_id,
                     beneficiary_name_from_bank=disbursement_recon_payload.beneficiary_name_from_bank,

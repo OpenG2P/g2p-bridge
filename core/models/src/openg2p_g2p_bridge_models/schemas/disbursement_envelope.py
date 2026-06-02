@@ -68,7 +68,7 @@ class DisbursementEnvelopeResponse(G2PResponse):
 
 
 class DisbursementReconPayload(BaseModel):
-    bank_disbursement_batch_id: str
+    disbursement_batch_control_id: str
     disbursement_id: str
     disbursement_envelope_id: Optional[str] = None
     beneficiary_name_from_bank: Optional[str] = None
