@@ -42,7 +42,7 @@ class MockSession:
             program_account_number="test_account_number",
             program_account_type=None,
             program_account_branch_code="test_branch",
-            sponsor_bank_code="EXAMPLE",
+            sponsor_bank_code="EXAMPLE-BANK",
         )
 
     def __enter__(self):

@@ -106,7 +106,7 @@ def test_block_funds_with_bank_success(mock_session_maker, mock_bank_connector_f
         program_account_number="test_account_number",
         program_account_type=None,
         program_account_branch_code="test_branch",
-        sponsor_bank_code="EXAMPLE",
+        sponsor_bank_code="EXAMPLE-BANK",
     )
     with patch(
         "openg2p_g2p_bridge_celery_workers.tasks.block_funds_with_bank.WarehouseHelper.get_component",
@@ -132,7 +132,7 @@ def test_block_funds_with_bank_failure(mock_session_maker, mock_bank_connector_f
         program_account_number="test_account_number",
         program_account_type=None,
         program_account_branch_code="test_branch",
-        sponsor_bank_code="EXAMPLE",
+        sponsor_bank_code="EXAMPLE-BANK",
     )
     with patch(
         "openg2p_g2p_bridge_celery_workers.tasks.block_funds_with_bank.WarehouseHelper.get_component",
@@ -151,7 +151,7 @@ def test_block_funds_with_bank_exception(mock_session_maker, mock_bank_connector
         program_account_number="test_account_number",
         program_account_type=None,
         program_account_branch_code="test_branch",
-        sponsor_bank_code="EXAMPLE",
+        sponsor_bank_code="EXAMPLE-BANK",
     )
     with patch(
         "openg2p_g2p_bridge_celery_workers.tasks.block_funds_with_bank.WarehouseHelper.get_component",
@@ -174,7 +174,7 @@ def test_check_funds_with_bank_envelope_not_found(mock_session_maker, mock_bank_
         program_account_number="test_account_number",
         program_account_type=None,
         program_account_branch_code="test_branch",
-        sponsor_bank_code="EXAMPLE",
+        sponsor_bank_code="EXAMPLE-BANK",
     )
     with patch(
         "openg2p_g2p_bridge_celery_workers.tasks.block_funds_with_bank.WarehouseHelper.get_component",
@@ -194,7 +194,7 @@ def test_check_funds_with_bank_envelope_batch_status_not_found(
         program_account_number="test_account_number",
         program_account_type=None,
         program_account_branch_code="test_branch",
-        sponsor_bank_code="EXAMPLE",
+        sponsor_bank_code="EXAMPLE-BANK",
     )
     with patch(
         "openg2p_g2p_bridge_celery_workers.tasks.block_funds_with_bank.WarehouseHelper.get_component",
