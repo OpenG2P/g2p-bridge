@@ -16,9 +16,7 @@ class RequestValidation(BaseService):
         # When disabled (e.g. pure digital-cash demo), skip the check entirely so
         # callers need not send a signed Signature header. Enable in production.
         if not _config.keymanager_auth_enabled:
-            _logger.info(
-                "Keymanager auth disabled; skipping JWT signature validation"
-            )
+            _logger.info("Keymanager auth disabled; skipping JWT signature validation")
             return None
 
         _logger.info("Validating signature")
