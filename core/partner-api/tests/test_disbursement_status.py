@@ -34,7 +34,7 @@ async def test_get_disbursement_status_success(mock_request_validation, mock_ser
     mock_service_instance.get_disbursement_status_payloads = AsyncMock(
         return_value=[
             DisbursementStatusPayload(
-                disbursement_id="disb123",
+                reconciliation_id="disb123",
                 disbursement_recon_records=None,
             )
         ]
@@ -51,7 +51,7 @@ async def test_get_disbursement_status_success(mock_request_validation, mock_ser
         response_body=DisbursementStatusResponseBody(
             response_payload=[
                 DisbursementStatusPayload(
-                    disbursement_id="disb123",
+                    reconciliation_id="disb123",
                     disbursement_recon_records=None,
                 )
             ]

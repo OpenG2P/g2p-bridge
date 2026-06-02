@@ -68,8 +68,9 @@ class DisbursementEnvelopeResponse(G2PResponse):
 
 
 class DisbursementReconPayload(BaseModel):
-    disbursement_batch_control_id: str
-    disbursement_id: str
+    disbursement_batch_control_id: Optional[str] = None
+    disbursement_id: Optional[str] = None
+    disbursement_batch_control_geo_id: Optional[str] = None
     disbursement_envelope_id: Optional[str] = None
     beneficiary_name_from_bank: Optional[str] = None
 
@@ -99,7 +100,8 @@ class DisbursementErrorReconPayload(BaseModel):
     entry_date: Optional[datetime.datetime] = None
     value_date: Optional[datetime.datetime] = None
     error_reason: Optional[G2PBridgeErrorCodes] = None
-    disbursement_id: str
+    reconciliation_id: str
+    disbursement_batch_control_geo_id: Optional[str] = None
     bank_reference_number: Optional[str] = None
 
 
@@ -109,7 +111,7 @@ class DisbursementReconRecords(BaseModel):
 
 
 class DisbursementStatusPayload(BaseModel):
-    disbursement_id: str
+    reconciliation_id: str
     disbursement_recon_records: Optional[DisbursementReconRecords] = None
 
 
