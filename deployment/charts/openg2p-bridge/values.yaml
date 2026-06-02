@@ -87,7 +87,7 @@ global:
   #     create the matching account in the Example Bank.
   sponsorBankConfigurations:
     default:
-      sponsor_bank_code: EXAMPLE
+      sponsor_bank_code: EXAMPLE-BANK
       program_account_number: "SPONSOR0001"
       program_account_type: ""
       program_account_branch_code: ""
@@ -484,7 +484,7 @@ g2pBridgeCeleryWorkers:
     G2P_BRIDGE_CELERY_WORKERS_FUNDS_AVAILABLE_CHECK_URL_EXAMPLE_BANK: '{{ tpl .Values.global.g2pBridgeExampleBankBaseUrl $ }}/check_funds'
     G2P_BRIDGE_CELERY_WORKERS_FUNDS_BLOCK_URL_EXAMPLE_BANK: '{{ tpl .Values.global.g2pBridgeExampleBankBaseUrl $ }}/block_funds'
     G2P_BRIDGE_CELERY_WORKERS_FUNDS_DISBURSEMENT_URL_EXAMPLE_BANK: '{{ tpl .Values.global.g2pBridgeExampleBankBaseUrl $ }}/initiate_payment'
-    G2P_BRIDGE_CELERY_WORKERS_BANK_SIMULATOR_CODE: EXAMPLE
+    G2P_BRIDGE_CELERY_WORKERS_BANK_SIMULATOR_CODE: EXAMPLE-BANK
 
     G2P_BRIDGE_AGENCY_ALLOCATOR_DB_USERNAME_PBMS: '{{ tpl .Values.global.PBMSDBUser $ }}'
     G2P_BRIDGE_AGENCY_ALLOCATOR_DB_HOSTNAME_PBMS: "{{ tpl .Values.global.PBMSDBHostname $ }}"
