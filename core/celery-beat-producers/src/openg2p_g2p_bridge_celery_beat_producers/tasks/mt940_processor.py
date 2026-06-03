@@ -42,7 +42,7 @@ def mt940_processor_beat_producer():
             celery_app.send_task(
                 "mt940_processor_worker",
                 args=[statement.statement_id],
-                queue="g2p_bridge_celery_worker_tasks",
+                queue=_config.celery_worker_task_queue,
             )
 
         _logger.info("Finished mt940_processor_beat_producer")

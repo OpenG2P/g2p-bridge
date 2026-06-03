@@ -79,7 +79,7 @@ def block_funds_with_bank_beat_producer():
             celery_app.send_task(
                 "block_funds_with_bank_worker",
                 args=(envelope.id,),
-                queue="g2p_bridge_celery_worker_tasks",
+                queue=_config.celery_worker_task_queue,
             )
 
         _logger.info("Completed checking for envelopes to block funds with bank")

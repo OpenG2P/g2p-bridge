@@ -83,7 +83,7 @@ def check_funds_with_bank_beat_producer():
             celery_app.send_task(
                 "check_funds_with_bank_worker",
                 args=(disbursement_envelope.id,),
-                queue="g2p_bridge_celery_worker_tasks",
+                queue=_config.celery_worker_task_queue,
             )
 
         _logger.info("Checking funds with bank beat tasks push completed")

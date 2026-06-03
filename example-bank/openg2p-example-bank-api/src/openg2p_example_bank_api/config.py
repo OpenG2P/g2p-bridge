@@ -19,8 +19,9 @@ class Settings(BaseSettings):
 
     db_dbname: str = "example_bank_db"
 
-    celery_broker_url: str = "redis://localhost:6379/0"
-    celery_backend_url: str = "redis://localhost:6379/0"
+    celery_broker_url: str = "redis://localhost:6379/1"
+    celery_backend_url: str = "redis://localhost:6379/1"
+    celery_worker_task_queue: str = "example_bank_queue"
 
     # Treasury/sponsor account seeding (demo). When enabled, `migrate` creates an
     # account with treasury_account_number if it does not already exist. The G2P

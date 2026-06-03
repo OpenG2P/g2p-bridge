@@ -37,7 +37,7 @@ def batching_request_beat_producer():
             celery_app.send_task(
                 "batching_request_worker",
                 args=[initiate_payment_batch_request.batch_id],
-                queue="example_bank_queue",
+                queue=_config.celery_worker_task_queue,
             )
             initiate_payment_batch_request.batching_request_status = (
                 PaymentStatus.PROCESSING

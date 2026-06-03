@@ -58,7 +58,7 @@ def mapper_resolution_beat_producer():
             # 4. Publish to Celery queue
             celery_app.send_task(
                 "mapper_resolution_worker",
-                queue="g2p_bridge_celery_worker_tasks",
+                queue=_config.celery_worker_task_queue,
                 args=[disbursement_batch_control.id],
             )
             _logger.info(

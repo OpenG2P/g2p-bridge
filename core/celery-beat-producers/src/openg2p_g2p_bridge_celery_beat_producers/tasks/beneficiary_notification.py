@@ -41,6 +41,6 @@ def beneficiary_notification_beat_producer():
             celery_app.send_task(
                 "beneficiary_notification_worker",
                 args=[disbursement_resolution_geo_address.disbursement_id],
-                queue="g2p_bridge_celery_worker_tasks",
+                queue=_config.celery_worker_task_queue,
             )
         _logger.info("Finished beneficiary_notification_beat_producer")

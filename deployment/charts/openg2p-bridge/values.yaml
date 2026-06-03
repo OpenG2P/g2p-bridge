@@ -41,6 +41,12 @@ global:
 
   g2pBridgeMapperBaseUrl: 'http://spar-mapper-api/api/mapper'
 
+  # Celery: Bridge uses Redis DB 0; Example Bank uses DB 1 (separate brokers on same Redis).
+  g2pBridgeQueue: g2p_bridge_queue
+  g2pBridgeRedisDb: 0
+  exampleBankQueue: example_bank_queue
+  exampleBankRedisDb: 1
+
   # OIDC client created by keycloak-init (see keycloak-init.realms below).
   g2pBridgeAuthClientId: 'g2p-bridge'
   # K8s secret holding the client password — same name as the client id, since
@@ -116,8 +122,7 @@ postgres-init:
       user: '{{ tpl .Values.global.bridgeDBUser $ }}'
       secret: '{{ tpl .Values.global.bridgeDBSecret $ }}'
       secretUserPasswordKey: '{{ tpl .Values.global.bridgeDBUserPasswordKey $ }}'
-    # Example Bank DB (the simulator is folded into this chart; this DB is
-    # created regardless of exampleBank.enabled but only used when enabled).
+    # Example Bank DB (simulator only; pods gated by exampleBank.enabled below).
     - name: '{{ tpl .Values.global.exampleBankDB $ }}'
       user: '{{ tpl .Values.global.exampleBankDBUser $ }}'
       secret: '{{ tpl .Values.global.exampleBankDBSecret $ }}'
@@ -376,7 +381,10 @@ g2pBridgeCeleryBeatProducers:
   envVars:
     # Run the shared celery image as the beat producer.
     CELERY_APP: openg2p_g2p_bridge_celery_beat_producers.main.celery_app
+    # Beat producer tasks use Celery default queue (celery); worker pod listens on g2pBridgeQueue only.
     CELERY_OPTS: worker --beat --loglevel=info --schedule=/tmp/celery-beat-schedule.db
+
+    G2P_BRIDGE_CELERY_BEAT_CELERY_WORKER_TASK_QUEUE: '{{ tpl .Values.global.g2pBridgeQueue $ }}'
 
     # When false (digital cash), the in-kind beat tasks are not scheduled.
     G2P_BRIDGE_CELERY_BEAT_IN_KIND_ENABLED: '{{ .Values.global.g2pBridgeInKindEnabled }}'
@@ -386,8 +394,8 @@ g2pBridgeCeleryBeatProducers:
     G2P_BRIDGE_CELERY_BEAT_DB_PORT: '{{ .Values.global.bridgeDBPort }}'
     G2P_BRIDGE_CELERY_BEAT_DB_USERNAME: '{{ tpl .Values.global.bridgeDBUser $ }}'
 
-    G2P_BRIDGE_CELERY_BEAT_CELERY_BROKER_URL: redis://{{ tpl .Values.global.redisInstallationName $ }}:6379/0
-    G2P_BRIDGE_CELERY_BEAT_CELERY_BACKEND_URL: redis://{{ tpl .Values.global.redisInstallationName $ }}:6379/0
+    G2P_BRIDGE_CELERY_BEAT_CELERY_BROKER_URL: redis://{{ tpl .Values.global.redisInstallationName $ }}:6379/{{ .Values.global.g2pBridgeRedisDb }}
+    G2P_BRIDGE_CELERY_BEAT_CELERY_BACKEND_URL: redis://{{ tpl .Values.global.redisInstallationName $ }}:6379/{{ .Values.global.g2pBridgeRedisDb }}
 
     G2P_BRIDGE_CELERY_BEAT_MAPPER_RESOLVE_FREQUENCY: 30
     G2P_BRIDGE_CELERY_BEAT_FUNDS_AVAILABLE_CHECK_FREQUENCY: 30
@@ -449,7 +457,9 @@ g2pBridgeCeleryWorkers:
   envVars:
     # Run the shared celery image as the worker.
     CELERY_APP: openg2p_g2p_bridge_celery_workers.main.celery_app
-    CELERY_OPTS: worker -Q g2p_bridge_celery_worker_tasks --loglevel=info
+    CELERY_OPTS: 'worker -Q {{ tpl .Values.global.g2pBridgeQueue $ }} --loglevel=info'
+
+    G2P_BRIDGE_CELERY_WORKERS_CELERY_TASK_QUEUE: '{{ tpl .Values.global.g2pBridgeQueue $ }}'
 
     # In-kind toggle. When false (digital cash), geo/warehouse/agency are not
     # initialized and the sponsor bank config below is used instead of PBMS.
@@ -461,8 +471,8 @@ g2pBridgeCeleryWorkers:
     G2P_BRIDGE_CELERY_WORKERS_DB_DBNAME: '{{ tpl .Values.global.bridgeDB $ }}'
     G2P_BRIDGE_CELERY_WORKERS_DB_PORT: '{{ .Values.global.bridgeDBPort }}'
     G2P_BRIDGE_CELERY_WORKERS_DB_USERNAME: '{{ tpl .Values.global.bridgeDBUser $ }}'
-    G2P_BRIDGE_CELERY_WORKERS_CELERY_BROKER_URL: redis://{{ tpl .Values.global.redisInstallationName $ }}:6379/0
-    G2P_BRIDGE_CELERY_WORKERS_CELERY_BACKEND_URL: redis://{{ tpl .Values.global.redisInstallationName $ }}:6379/0
+    G2P_BRIDGE_CELERY_WORKERS_CELERY_BROKER_URL: redis://{{ tpl .Values.global.redisInstallationName $ }}:6379/{{ .Values.global.g2pBridgeRedisDb }}
+    G2P_BRIDGE_CELERY_WORKERS_CELERY_BACKEND_URL: redis://{{ tpl .Values.global.redisInstallationName $ }}:6379/{{ .Values.global.g2pBridgeRedisDb }}
 
     # Read by SPARMapperClient (extensions/mapper-connectors/config.py), not G2PCONNECT_*.
     G2P_BRIDGE_MAPPER_CONNECTORS_SPAR_MAPPER_URL: '{{ .Values.global.g2pBridgeMapperBaseUrl }}/mapper/resolve'
@@ -649,8 +659,8 @@ keycloak-init:
 
 # ---------------------------------------------------------------------------
 # Example Bank simulator (bundled). Set exampleBank.enabled=false to skip the
-# entire simulator (api + celery beat/worker). Its DB (example_bank_db) is
-# provisioned via postgres-init above and it reuses this chart's Redis.
+# entire simulator (api + celery beat/worker); Redis DB 1 is then unused.
+# The example_bank_db entry in postgres-init still runs unless removed manually.
 # ---------------------------------------------------------------------------
 exampleBank:
   enabled: true
@@ -714,8 +724,9 @@ exampleBankApi:
     EXAMPLE_BANK_PORT: '{{ .Values.containerPort }}'
     EXAMPLE_BANK_NO_OF_WORKERS: '1'
     EXAMPLE_BANK_OPENAPI_ROOT_PATH: '{{ .Values.openapiRootPath }}'
-    EXAMPLE_BANK_CELERY_BROKER_URL: redis://{{ tpl .Values.global.redisInstallationName $ }}:6379/0
-    EXAMPLE_BANK_CELERY_BACKEND_URL: redis://{{ tpl .Values.global.redisInstallationName $ }}:6379/0
+    EXAMPLE_BANK_CELERY_BROKER_URL: redis://{{ tpl .Values.global.redisInstallationName $ }}:6379/{{ .Values.global.exampleBankRedisDb }}
+    EXAMPLE_BANK_CELERY_BACKEND_URL: redis://{{ tpl .Values.global.redisInstallationName $ }}:6379/{{ .Values.global.exampleBankRedisDb }}
+    EXAMPLE_BANK_CELERY_WORKER_TASK_QUEUE: '{{ tpl .Values.global.exampleBankQueue $ }}'
 
     # Treasury/sponsor account seed — same account the Bridge debits for digital
     # cash (single source: global.sponsorBankConfigurations.default).
@@ -794,6 +805,7 @@ exampleBankCeleryBeat:
     runAsNonRoot: true
 
   envVars:
+    EXAMPLE_BANK_CELERY_CELERY_WORKER_TASK_QUEUE: '{{ tpl .Values.global.exampleBankQueue $ }}'
     EXAMPLE_BANK_CELERY_DB_HOSTNAME: '{{ .Values.global.postgresqlHost }}'
     EXAMPLE_BANK_CELERY_DB_DBNAME: '{{ tpl .Values.global.exampleBankDB $ }}'
     EXAMPLE_BANK_CELERY_DB_PORT: 5432
@@ -803,8 +815,8 @@ exampleBankCeleryBeat:
     EXAMPLE_BANK_CELERY_PORT: '8000'
     EXAMPLE_BANK_CELERY_NO_OF_WORKERS: '1'
     EXAMPLE_BANK_CELERY_PROCESS_PAYMENT_FREQUENCY: 10
-    EXAMPLE_BANK_CELERY_CELERY_BROKER_URL: redis://{{ tpl .Values.global.redisInstallationName $ }}:6379/0
-    EXAMPLE_BANK_CELERY_CELERY_BACKEND_URL: redis://{{ tpl .Values.global.redisInstallationName $ }}:6379/0
+    EXAMPLE_BANK_CELERY_CELERY_BROKER_URL: redis://{{ tpl .Values.global.redisInstallationName $ }}:6379/{{ .Values.global.exampleBankRedisDb }}
+    EXAMPLE_BANK_CELERY_CELERY_BACKEND_URL: redis://{{ tpl .Values.global.redisInstallationName $ }}:6379/{{ .Values.global.exampleBankRedisDb }}
   envVarsFrom:
     EXAMPLE_BANK_CELERY_DB_PASSWORD:
       secretKeyRef:
@@ -828,6 +840,15 @@ exampleBankCeleryBeat:
 exampleBankCeleryWorker:
   nameOverride: example-bank-celery-worker
   replicaCount: 1
+  command:
+  - celery
+  args:
+  - -A
+  - main.celery_app
+  - worker
+  - --loglevel=info
+  - -Q
+  - '{{ tpl .Values.global.exampleBankQueue $ }}'
   serviceAccount:
     create: true
     name: ""
@@ -844,6 +865,7 @@ exampleBankCeleryWorker:
     runAsNonRoot: true
 
   envVars:
+    EXAMPLE_BANK_CELERY_CELERY_TASK_QUEUE: '{{ tpl .Values.global.exampleBankQueue $ }}'
     EXAMPLE_BANK_CELERY_DB_HOSTNAME: '{{ .Values.global.postgresqlHost }}'
     EXAMPLE_BANK_CELERY_DB_DBNAME: '{{ tpl .Values.global.exampleBankDB $ }}'
     EXAMPLE_BANK_CELERY_DB_PORT: 5432
@@ -853,8 +875,8 @@ exampleBankCeleryWorker:
     EXAMPLE_BANK_CELERY_PORT: '8000'
     EXAMPLE_BANK_CELERY_NO_OF_WORKERS: '1'
     EXAMPLE_BANK_CELERY_PROCESS_PAYMENT_FREQUENCY: 10
-    EXAMPLE_BANK_CELERY_CELERY_BROKER_URL: redis://{{ tpl .Values.global.redisInstallationName $ }}:6379/0
-    EXAMPLE_BANK_CELERY_CELERY_BACKEND_URL: redis://{{ tpl .Values.global.redisInstallationName $ }}:6379/0
+    EXAMPLE_BANK_CELERY_CELERY_BROKER_URL: redis://{{ tpl .Values.global.redisInstallationName $ }}:6379/{{ .Values.global.exampleBankRedisDb }}
+    EXAMPLE_BANK_CELERY_CELERY_BACKEND_URL: redis://{{ tpl .Values.global.redisInstallationName $ }}:6379/{{ .Values.global.exampleBankRedisDb }}
     # Example Bank uploads MT940 statements back to the Bridge API.
     EXAMPLE_BANK_CELERY_MT940_STATEMENT_CALLBACK_URL: '{{ tpl .Values.global.g2pBridgeApiBaseUrl $ }}/upload_mt940'
   envVarsFrom:

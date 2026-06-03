@@ -46,7 +46,7 @@ ENV PYTHONUNBUFFERED=1
 # Default role = worker. Override CELERY_APP / CELERY_OPTS (e.g. from the Helm
 # chart) to run the same image as the beat producer instead.
 ENV CELERY_APP=openg2p_g2p_bridge_celery_workers.main.celery_app
-ENV CELERY_OPTS="worker -Q g2p_bridge_celery_worker_tasks --loglevel=info"
+ENV CELERY_OPTS="worker -Q g2p_bridge_queue --loglevel=info"
 ENV CELERY_IMPORTS=""
 
 COPY docker/g2p-bridge-celery/run_celery.py /app/run_celery.py

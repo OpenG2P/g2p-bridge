@@ -44,7 +44,7 @@ def account_statement_generator_beat_producer():
             celery_app.send_task(
                 "account_statement_generator_worker",
                 args=[account_statement.id],
-                queue="example_bank_queue",
+                queue=_config.celery_worker_task_queue,
             )
             account_statement.account_statement_generation_status = (
                 AccountStatementStatus.PROCESSING

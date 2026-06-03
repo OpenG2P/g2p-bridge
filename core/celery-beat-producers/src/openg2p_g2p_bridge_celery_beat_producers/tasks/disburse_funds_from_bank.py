@@ -61,7 +61,7 @@ def disburse_funds_from_bank_beat_producer():
                 celery_app.send_task(
                     "disburse_funds_from_bank_worker",
                     (disbursement_batch_control.id,),
-                    queue="g2p_bridge_celery_worker_tasks",
+                    queue=_config.celery_worker_task_queue,
                 )
                 _logger.info(f"Sent tasks to disburse funds for {len(disbursement_batch_controls)} batches")
             else:
