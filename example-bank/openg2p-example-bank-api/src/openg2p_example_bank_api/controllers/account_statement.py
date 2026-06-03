@@ -60,8 +60,9 @@ class AccountStatementController(BaseController):
             # Create a new task to generate the account statement
             _logger.info("Account statement generation task created")
             celery_app.send_task(
-                "account_statement_generator",
+                "account_statement_generator_worker",
                 args=(account_statement.id,),
+                queue=_config.celery_worker_task_queue,
             )
 
             return AccountStatementResponse(

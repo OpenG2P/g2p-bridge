@@ -37,7 +37,7 @@ def agency_allocation_beat_producer():
             celery_app.send_task(
                 "agency_allocation_worker",
                 args=[disbursement_batch_control.id],
-                queue="g2p_bridge_celery_worker_tasks",
+                queue=_config.celery_worker_task_queue,
             )
 
         _logger.info("Finished agency_allocation_beat_producer")

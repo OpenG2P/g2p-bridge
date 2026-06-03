@@ -125,8 +125,9 @@ def process_payments_worker(payment_request_batch_id: str):
             # TODO: create beat for account statement generation
             _logger.info("Account statement generation task created")
             celery_app.send_task(
-                "account_statement_generator",
+                "account_statement_generator_worker",
                 args=(account_statement.id,),
+                queue=_config.celery_task_queue,
             )
         except Exception as e:
             _logger.error(f"Error processing payment: {e}")

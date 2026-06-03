@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     celery_broker_url: str = "redis://localhost:6379/0"
     celery_backend_url: str = "redis://localhost:6379/0"
 
+    # Queue where beat producers dispatch bridge worker tasks (beat uses Celery default queue).
+    celery_worker_task_queue: str = "g2p_bridge_queue"
+
     mapper_resolve_frequency: int = 3600
     funds_available_check_frequency: int = 3600
     funds_blocked_frequency: int = 3600
