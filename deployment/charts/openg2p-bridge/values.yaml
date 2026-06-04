@@ -58,6 +58,7 @@ global:
   # When true, the Bridge authenticates to Keymanager (client-credentials) using
   # the g2p-bridge client. Disabled for now; enable in production together with
   # keycloak-init.enabled below.
+  g2pBridgeSignatureValidationEnabled: false
   g2pBridgeKeymanagerAuthEnabled: false
   g2pBridgeKeymanagerAppId: OPENG2P_BRIDGE
 
@@ -188,9 +189,9 @@ g2pBridgeApi:
 
     G2P_BRIDGE_JWT_VALIDATE_KEYMANAGER_APP_ID: '{{ .Values.global.g2pBridgeKeymanagerAppId }}'
     G2P_BRIDGE_KEYMANAGER_API_BASE_URL: "http://{{ .Values.global.keymanagerInstallationName }}/v1/keymanager"
-    # Inbound partner-signature enforcement on the Partner API endpoints. When
-    # false, the API skips JWT signature validation (no signed header required);
-    # set true in production. Same switch also drives outbound OAuth below.
+    # Inbound partner JWT signature validation on Partner API endpoints.
+    G2P_BRIDGE_SIGNATURE_VALIDATION_ENABLED: '{{ .Values.global.g2pBridgeSignatureValidationEnabled }}'
+    # Outbound Keymanager API authentication (OAuth client credentials).
     G2P_BRIDGE_KEYMANAGER_AUTH_ENABLED: '{{ .Values.global.g2pBridgeKeymanagerAuthEnabled }}'
     G2P_BRIDGE_OAUTH_ENABLED: '{{ .Values.global.g2pBridgeKeymanagerAuthEnabled }}'
     G2P_BRIDGE_OAUTH_URL: "{{ tpl .Values.global.keycloakIssuerUrl $ }}/protocol/openid-connect/token"
