@@ -43,13 +43,19 @@ def envelope(
     *,
     sender: str,
     sender_url: str = "http://sanity.test",
+    body_extra: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Wrap a request_payload in the full G2PRequest envelope."""
+    """Wrap a request_payload in the full G2PRequest envelope.
+
+    ``body_extra`` adds extra keys to request_body (e.g.
+    ``disbursement_batch_control_id`` so the caller controls the batch id).
+    """
     return {
         "request_header": request_header(request_id, sender, sender_url),
         "request_body": {
             "pagination_request": None,
             "request_payload": payload,
+            **(body_extra or {}),
         },
     }
 

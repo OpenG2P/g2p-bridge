@@ -40,7 +40,7 @@ treasury_opening_balance: 10000000
 # --- SPAR seed: the beneficiary bank FA the suite links --------------------------
 # Use the Example Bank's own simulator bank code so payments are NOT randomly
 # failed (deterministic happy path). Must match Example Bank's bank_simulator_code.
-beneficiary_bank_code: EXAMPLE
+beneficiary_bank_code: EXAMPLE-BANK
 beneficiary_bank_name: Example Bank
 beneficiary_branch_code: "0001"
 beneficiary_branch_name: Main
@@ -63,6 +63,7 @@ e2e_recon_timeout_seconds: 900
 # mnemonics, cycle and target-registry are derived from test_prefix.
 benefit_program_id: 999001
 benefit_code_id: 999002
+disbursement_cycle_id: 1
 disbursement_frequency: Monthly   # one of: Daily, Weekly, Fortnightly, Monthly, BiMonthly, Quarterly, SemiAnnually, Annually
 
 # --- Results -------------------------------------------------------------------

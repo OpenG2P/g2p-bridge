@@ -59,3 +59,6 @@ class RunNamespace:
 
     def reference_id(self, n: int) -> str:
         return f"{self.run_id}_REF_{n:03d}"
+
+    def batch_control_id(self) -> str:
+        return f"{self.run_id}_BCTL"

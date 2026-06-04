@@ -76,7 +76,7 @@ def cash_flow(config, bridge, example_bank, seeded_links, run_ns):
         "benefit_code_mnemonic": run_ns.benefit_code_mnemonic,
         "benefit_code_description": "Digital cash sanity",
         "benefit_type": "CASH_DIGITAL",
-        "disbursement_cycle_id": 1,
+        "disbursement_cycle_id": config.disbursement_cycle_id,
         "disbursement_frequency": config.disbursement_frequency,
         "cycle_code_mnemonic": f"{run_ns.prefix}_CYCLE",
         "number_of_beneficiaries": n,
@@ -93,10 +93,11 @@ def cash_flow(config, bridge, example_bank, seeded_links, run_ns):
     )
     r["envelope_id"] = envelope_id
 
-    # 3) Create disbursements; capture the batch-control id from the response.
+    # 3) Create disbursements. We SUPPLY the batch-control id (the API does not
+    #    echo a generated one back) so later stages can poll it.
     disb_ids = [run_ns.disbursement_id(i) for i in range(1, n + 1)]
     r["disb_ids"] = disb_ids
-    batch_control_id = None
+    batch_control_id = run_ns.batch_control_id()
     if envelope_id:
         disb_payloads = [
             {
@@ -105,21 +106,16 @@ def cash_flow(config, bridge, example_bank, seeded_links, run_ns):
                 "beneficiary_id": beneficiaries[i - 1],
                 "beneficiary_name": f"{run_ns.prefix} Beneficiary {i}",
                 "disbursement_quantity": amount,
+                "disbursement_cycle_id": config.disbursement_cycle_id,
                 "narrative": f"{run_ns.prefix} sanity disbursement {i}",
             }
             for i in range(1, n + 1)
         ]
         ds_status, ds_body = bridge.create_disbursements(
-            run_ns.request_id(), disb_payloads
+            run_ns.request_id(), disb_payloads, batch_control_id=batch_control_id
         )
         r["disb_status"], r["disb_body"] = ds_status, ds_body
-        try:
-            batch_control_id = ds_body["response_body"].get(
-                "disbursement_batch_control_id"
-            )
-        except (KeyError, TypeError):
-            batch_control_id = None
-    r["batch_control_id"] = batch_control_id
+    r["batch_control_id"] = batch_control_id if envelope_id else None
 
     # --- staged polling with a single shared budget for stages 2-6 ---
     deadline = time.monotonic() + config.e2e_pipeline_timeout_seconds

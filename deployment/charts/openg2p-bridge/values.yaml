@@ -466,7 +466,9 @@ g2pBridgeCeleryWorkers:
     # initialized and the sponsor bank config below is used instead of PBMS.
     G2P_BRIDGE_CELERY_WORKERS_IN_KIND_ENABLED: '{{ .Values.global.g2pBridgeInKindEnabled }}'
     # Sponsor bank config for digital cash (JSON), sourced from values.
-    G2P_BRIDGE_CELERY_WORKERS_SPONSOR_BANK_CONFIGURATIONS: '{{ .Values.global.sponsorBankConfigurations | toJson }}'
+    # tpl-render the JSON so nested {{ }} values (e.g. sponsor_bank_code) are
+    # evaluated; toJson alone would emit them as literal template strings.
+    G2P_BRIDGE_CELERY_WORKERS_SPONSOR_BANK_CONFIGURATIONS: '{{ tpl (.Values.global.sponsorBankConfigurations | toJson) $ }}'
 
     G2P_BRIDGE_CELERY_WORKERS_DB_HOSTNAME: '{{ .Values.global.postgresqlHost }}'
     G2P_BRIDGE_CELERY_WORKERS_DB_DBNAME: '{{ tpl .Values.global.bridgeDB $ }}'

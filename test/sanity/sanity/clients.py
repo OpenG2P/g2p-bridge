@@ -26,7 +26,15 @@ class _Base:
         timeout: int,
         sender: str = "TEST_SANITY",
     ):
-        self.base_url = base_url.rstrip("/")
+        self.base_url = (base_url or "").rstrip("/")
+        if not self.base_url.startswith(("http://", "https://")):
+            raise ValueError(
+                f"{type(self).__name__}: base_url is {self.base_url!r} — empty or "
+                "missing an 'http(s)://' scheme. Set the matching *_base_url in "
+                "config.yaml. The sanity suite runs off-cluster, so use the public "
+                "https URL (e.g. https://spar.<ns>.openg2p.org/api/mapper/mapper), "
+                "not an in-cluster service name."
+            )
         self.sender = sender
         self._http = httpx.Client(verify=verify_tls, timeout=timeout)
 
@@ -73,9 +81,19 @@ class BridgeClient(_Base):
         return self._post("/amend_disbursement_envelope", request_id, [payload])
 
     def create_disbursements(
-        self, request_id: str, payloads: list[dict]
+        self, request_id: str, payloads: list[dict], batch_control_id: str | None = None
     ) -> tuple[int, Any]:
-        return self._post("/create_disbursements", request_id, payloads)
+        # Supplying disbursement_batch_control_id lets the caller correlate/poll
+        # the batch (the API does not echo a generated id back).
+        body_extra = (
+            {"disbursement_batch_control_id": batch_control_id}
+            if batch_control_id
+            else None
+        )
+        env = g2p.envelope(
+            request_id, payloads, sender=self.sender, body_extra=body_extra
+        )
+        return self.post_json("/create_disbursements", env)
 
     def cancel_disbursements(self, request_id: str, ids: list[str]) -> tuple[int, Any]:
         return self._post(

@@ -35,7 +35,7 @@ class Config:
     treasury_currency: str = "USD"
     treasury_opening_balance: float = 10000000
 
-    beneficiary_bank_code: str = "EXAMPLE"
+    beneficiary_bank_code: str = "EXAMPLE-BANK"
     beneficiary_bank_name: str = "Example Bank"
     beneficiary_branch_code: str = "0001"
     beneficiary_branch_name: str = "Main"
@@ -55,6 +55,7 @@ class Config:
     # the remaining template fields a CASH_DIGITAL envelope needs.
     benefit_program_id: int = 999001
     benefit_code_id: int = 999002
+    disbursement_cycle_id: int = 1
     disbursement_frequency: str = "Monthly"
 
     keymanager_auth_enabled: bool = False
