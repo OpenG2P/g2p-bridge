@@ -1,0 +1,73 @@
+# OpenG2P G2P Bridge — sanity suite configuration.
+#
+# Copy to config.yaml and point at your installed system, OR override any value
+# via environment variables (SANITY_<UPPER_SNAKE>, e.g. SANITY_NAMESPACE=trial,
+# SANITY_BRIDGE_BASE_URL=...). Env vars win over the file.
+#
+# Run:  pytest -c pyproject.toml            (uses ./config.yaml)
+#       SANITY_NAMESPACE=trial pytest        (override on the fly)
+
+# Environment segment; the default *_base_url values below are derived from it.
+namespace: trial
+# Base domain that hostnames hang off (……<namespace>.<base_domain>).
+base_domain: openg2p.org
+
+# --- Service base URLs (leave blank to derive from namespace/base_domain) -----
+# Partner API root (includes its openapi root path).
+bridge_base_url: ""            # default: https://g2p-bridge.<ns>.<domain>/api/g2p-bridge
+bene_portal_base_url: ""       # default: https://g2p-bridge-bene-portal.<ns>.<domain>/api/bene-portal
+example_bank_base_url: ""      # default: https://example-bank.<ns>.<domain>/api/example-bank
+# SPAR Mapper partner API (for seeding ID->FA links). Note the doubled /mapper.
+spar_mapper_base_url: ""       # default: https://spar-mapper.<ns>.<domain>/api/mapper/mapper
+
+# --- TLS / HTTP ---------------------------------------------------------------
+verify_tls: true               # set false for self-signed dev certs
+request_timeout_seconds: 30
+
+# --- Test-data naming (all created data carries this prefix) ------------------
+# Reports/dashboards should exclude data where benefit_program_mnemonic LIKE 'TEST_%'.
+test_prefix: TEST_SANITY
+
+# --- Treasury / sponsor account (must match the chart's sponsorBankConfigurations) -
+treasury_account_number: SPONSOR0001
+treasury_currency: USD
+treasury_opening_balance: 10000000
+
+# --- SPAR seed: the beneficiary bank FA the suite links --------------------------
+# Use the Example Bank's own simulator bank code so payments are NOT randomly
+# failed (deterministic happy path). Must match Example Bank's bank_simulator_code.
+beneficiary_bank_code: EXAMPLE
+beneficiary_bank_name: Example Bank
+beneficiary_branch_code: "0001"
+beneficiary_branch_name: Main
+# SPAR's configured BANK strategy id (environment-dependent). Inspect your SPAR
+# strategies and set the id of the BANK-type construct/deconstruct strategy.
+spar_bank_strategy_id: 1
+
+# --- End-to-end test -----------------------------------------------------------
+run_e2e: true                  # set false to run only L0/L1 (no data created)
+e2e_num_beneficiaries: 2
+e2e_amount_per_beneficiary: 1000
+# Max time to wait for the async pipeline (resolve -> check -> block -> disburse).
+e2e_pipeline_timeout_seconds: 600
+e2e_poll_interval_seconds: 10
+# Reconciliation (MT940 round-trip) is slower; verified on a longer, soft budget.
+e2e_recon_timeout_seconds: 900
+
+# --- Sample disbursement batch (the e2e "seed") --------------------------------
+# All editable sample data lives here, not in the test scripts. Program/benefit
+# mnemonics, cycle and target-registry are derived from test_prefix.
+benefit_program_id: 999001
+benefit_code_id: 999002
+disbursement_frequency: Monthly   # one of: Daily, Weekly, Fortnightly, Monthly, BiMonthly, Quarterly, SemiAnnually, Annually
+
+# --- Results -------------------------------------------------------------------
+# Each run writes report.html + junit.xml under results/<prefix>_<timestamp>/.
+write_results: true
+results_dir: ""                # blank = <suite>/results
+
+# --- Auth ----------------------------------------------------------------------
+# The sanity profile assumes inbound Keymanager auth is OFF
+# (global.g2pBridgeKeymanagerAuthEnabled=false). If you turn it on, signed
+# requests are required and the write tests will be skipped.
+keymanager_auth_enabled: false

@@ -1,0 +1,22 @@
+[project]
+name = "openg2p-bridge-sanity"
+version = "0.0.0.dev0"
+description = "Regression sanity / end-to-end test suite for an installed OpenG2P G2P Bridge"
+requires-python = ">=3.10"
+dependencies = [
+    "pytest>=8.0",
+    "pytest-html>=4.1",
+    "httpx>=0.27",
+    "PyYAML>=6.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra -v"
+markers = [
+    "smoke: L0 - liveness / reachability of every service",
+    "contract: L1 - every API endpoint responds with a well-formed envelope",
+    "e2e: L2 - full digital-cash disbursement lifecycle (creates ephemeral data)",
+]
+log_cli = true
+log_cli_level = "INFO"

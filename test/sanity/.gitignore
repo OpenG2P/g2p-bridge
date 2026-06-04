@@ -1,0 +1,10 @@
+.venv*/
+venv/
+.sanity-runs/
+config.yaml
+report.html
+report.xml
+__pycache__/
+*.pyc
+.pytest_cache/
+results/
