@@ -17,8 +17,12 @@ base_domain: openg2p.org
 bridge_base_url: ""            # default: https://g2p-bridge.<ns>.<domain>/api/g2p-bridge
 bene_portal_base_url: ""       # default: https://g2p-bridge-bene-portal.<ns>.<domain>/api/bene-portal
 example_bank_base_url: ""      # default: https://example-bank.<ns>.<domain>/api/example-bank
-# SPAR Mapper partner API (for seeding ID->FA links). Note the doubled /mapper.
-spar_mapper_base_url: ""       # default: https://spar-mapper.<ns>.<domain>/api/mapper/mapper
+# SPAR Mapper partner API (for seeding ID->FA links). REQUIRED for the e2e test.
+# The test runner is OFF-cluster, so this is SPAR's PUBLIC ingress host (not the
+# in-cluster service name the Bridge uses). Note the doubled /mapper segment.
+# Set it explicitly — it is not derived from namespace (SPAR hostnames vary).
+# e.g. https://spar.trial.openg2p.org/api/mapper/mapper
+spar_mapper_base_url: "https://spar.trial.openg2p.org/api/mapper/mapper"
 
 # --- TLS / HTTP ---------------------------------------------------------------
 verify_tls: true               # set false for self-signed dev certs

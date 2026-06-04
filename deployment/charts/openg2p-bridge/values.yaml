@@ -39,7 +39,7 @@ global:
   keycloakRealm: staff
   keycloakIssuerUrl: '{{ tpl .Values.global.keycloakBaseUrl $ }}/realms/{{ tpl .Values.global.keycloakRealm $ }}'
 
-  g2pBridgeMapperBaseUrl: 'http://spar-mapper-api/api/mapper'
+  g2pBridgeMapperBaseUrl: 'http://spar-openg2p-spar-mapper-api/api/mapper'
 
   # Celery: Bridge uses Redis DB 0; Example Bank uses DB 1 (separate brokers on same Redis).
   g2pBridgeQueue: g2p_bridge_queue

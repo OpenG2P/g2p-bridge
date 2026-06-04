@@ -77,10 +77,10 @@ class Config:
             self.example_bank_base_url
             or f"https://example-bank.{ns}.{dom}/api/example-bank"
         )
-        self.spar_mapper_base_url = (
-            self.spar_mapper_base_url
-            or f"https://spar-mapper.{ns}.{dom}/api/mapper/mapper"
-        )
+        # spar_mapper_base_url is NOT derived — the SPAR host varies per
+        # deployment, so it must be set explicitly in config.yaml (see
+        # config.example.yaml). Left blank, the e2e seeding step will fail with
+        # a clear message rather than hit a guessed URL.
         # Normalise: strip trailing slashes.
         for f in (
             "bridge_base_url",
