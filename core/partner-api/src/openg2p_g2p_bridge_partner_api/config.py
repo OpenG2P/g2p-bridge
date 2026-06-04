@@ -26,4 +26,4 @@ class Settings(BaseSettings):
     ]
 
     keymanager_sign_app_id: str = "OPENG2P_BRIDGE"
-    keymanager_auth_enabled: bool = False
+    signature_validation_enabled: bool = False
