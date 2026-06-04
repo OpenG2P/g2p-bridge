@@ -44,9 +44,9 @@ beneficiary_bank_code: EXAMPLE-BANK
 beneficiary_bank_name: Example Bank
 beneficiary_branch_code: "0001"
 beneficiary_branch_name: Main
-# SPAR's configured BANK strategy id (environment-dependent). Inspect your SPAR
-# strategies and set the id of the BANK-type construct/deconstruct strategy.
-spar_bank_strategy_id: 1
+# SPAR's configured BANK strategy id. Must match the Bridge's FA deconstruct
+# format — use the SPAR chart's 'Bank (G2P Bridge)' strategy (seedData id 5).
+spar_bank_strategy_id: 5
 
 # --- End-to-end test -----------------------------------------------------------
 run_e2e: true                  # set false to run only L0/L1 (no data created)
@@ -76,3 +76,7 @@ results_dir: ""                # blank = <suite>/results
 # (global.g2pBridgeKeymanagerAuthEnabled=false). If you turn it on, signed
 # requests are required and the write tests will be skipped.
 keymanager_auth_enabled: false
+
+# Bene-Portal API tests. Off for now — the bene-portal enforces OIDC auth and the
+# suite does not yet authenticate (calls 401). Enable once token auth is added.
+bene_portal_enabled: false

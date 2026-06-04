@@ -10,7 +10,9 @@ def test_bridge_ping(bridge):
     assert r.status_code == 200, f"Bridge /ping returned {r.status_code}"
 
 
-def test_bene_portal_ping(bene_portal):
+def test_bene_portal_ping(bene_portal, config):
+    if not config.bene_portal_enabled:
+        pytest.skip("bene-portal tests disabled (config: bene_portal_enabled=false)")
     r = bene_portal.ping()
     assert r.status_code == 200, f"Bene-portal /ping returned {r.status_code}"
 

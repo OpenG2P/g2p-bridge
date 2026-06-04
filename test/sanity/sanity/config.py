@@ -39,9 +39,10 @@ class Config:
     beneficiary_bank_name: str = "Example Bank"
     beneficiary_branch_code: str = "0001"
     beneficiary_branch_name: str = "Main"
-    # SPAR's configured BANK strategy id (environment-dependent). Required to
-    # seed a bank-account FA link. Inspect your SPAR strategies to set this.
-    spar_bank_strategy_id: int = 1
+    # SPAR's configured BANK strategy id. Must point at a strategy whose construct
+    # format matches the Bridge's BANK_FA_DECONSTRUCT strategy — see the SPAR
+    # chart seedData.strategies, id 5 'Bank (G2P Bridge)'.
+    spar_bank_strategy_id: int = 5
 
     run_e2e: bool = True
     e2e_num_beneficiaries: int = 2
@@ -59,6 +60,11 @@ class Config:
     disbursement_frequency: str = "Monthly"
 
     keymanager_auth_enabled: bool = False
+
+    # Bene-Portal API tests. Disabled for now — the bene-portal enforces OIDC auth
+    # and the suite does not yet authenticate (calls return 401). Enable once the
+    # suite obtains an access token.
+    bene_portal_enabled: bool = False
 
     # --- results output ---
     write_results: bool = True  # write HTML + JUnit XML per run under results_dir
