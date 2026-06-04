@@ -185,7 +185,7 @@ class SeededLinks:
 def seeded_links(spar, config, run_ns):
     sl = SeededLinks(spar, config, run_ns)
     yield sl
-    # Always persist a manifest (so teardown.py can finish the job), then unlink.
+    # Always persist a manifest (so teardown.py can finish the job later).
     manifest.write(
         run_ns.run_id,
         {
@@ -194,4 +194,12 @@ def seeded_links(spar, config, run_ns):
             "entries": sl.entries,
         },
     )
-    sl.cleanup()
+    if config.cleanup_on_teardown:
+        sl.cleanup()
+    else:
+        _logger.info(
+            "cleanup_on_teardown=false; leaving %d SPAR link(s) in place. "
+            "Run 'python teardown.py --run-id %s' to clean up.",
+            len(sl.entries),
+            run_ns.run_id,
+        )

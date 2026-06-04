@@ -66,6 +66,11 @@ class Config:
     # suite obtains an access token.
     bene_portal_enabled: bool = False
 
+    # Auto-unlink SPAR ID->FA links at session end. Set false to LEAVE the test
+    # data in place for inspecting traces (the run manifest is still written, so
+    # `python teardown.py --all` can clean it up later).
+    cleanup_on_teardown: bool = True
+
     # --- results output ---
     write_results: bool = True  # write HTML + JUnit XML per run under results_dir
     results_dir: str = ""  # default: <suite>/results

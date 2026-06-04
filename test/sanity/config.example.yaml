@@ -80,3 +80,7 @@ keymanager_auth_enabled: false
 # Bene-Portal API tests. Off for now — the bene-portal enforces OIDC auth and the
 # suite does not yet authenticate (calls 401). Enable once token auth is added.
 bene_portal_enabled: false
+
+# Auto-unlink SPAR links at the end of a run. Set false to LEAVE all test data
+# in place for inspecting traces; clean up later with `python teardown.py --all`.
+cleanup_on_teardown: true
