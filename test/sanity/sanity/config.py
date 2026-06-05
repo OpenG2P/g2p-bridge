@@ -48,6 +48,11 @@ class Config:
     e2e_num_beneficiaries: int = 2
     e2e_amount_per_beneficiary: float = 1000
     e2e_pipeline_timeout_seconds: int = 600
+    # Per-stage budget for stages 2-6. Each async stage gets its OWN timeout, so a
+    # slow early stage can't starve the tail stages and a hang fails the exact
+    # stage that's stuck (instead of cascading). Sized generously for low beat
+    # frequencies; the overall run is still bounded by the per-stage timeouts.
+    e2e_stage_timeout_seconds: int = 120
     e2e_poll_interval_seconds: int = 10
     e2e_recon_timeout_seconds: int = 900
 

@@ -19,7 +19,6 @@ from __future__ import annotations
 
 import datetime
 import logging
-import time
 
 import pytest
 
@@ -117,11 +116,9 @@ def cash_flow(config, bridge, example_bank, seeded_links, run_ns):
         r["disb_status"], r["disb_body"] = ds_status, ds_body
     r["batch_control_id"] = batch_control_id if envelope_id else None
 
-    # --- staged polling with a single shared budget for stages 2-6 ---
-    deadline = time.monotonic() + config.e2e_pipeline_timeout_seconds
-
-    def remaining():
-        return max(1, int(deadline - time.monotonic()))
+    # --- staged polling: each stage gets its OWN budget (no shared deadline) so
+    # a slow early stage can't starve the tail, and a hang fails the exact stage.
+    stage_timeout = config.e2e_stage_timeout_seconds
 
     def batch_body():
         _, b = bridge.get_batch_control(run_ns.request_id(), batch_control_id)
@@ -140,7 +137,7 @@ def cash_flow(config, bridge, example_bank, seeded_links, run_ns):
         r["fa_ok"], r["fa_last"] = poll_until(
             batch_body,
             predicate=lambda b: _field(b, "fa_resolution_status") == "PROCESSED",
-            timeout=remaining(),
+            timeout=stage_timeout,
             interval=poll,
             description="FA resolution",
         )
@@ -153,7 +150,7 @@ def cash_flow(config, bridge, example_bank, seeded_links, run_ns):
             env_body_now,
             predicate=lambda b: _field(b, "funds_available_with_bank")
             == "FUNDS_AVAILABLE",
-            timeout=remaining(),
+            timeout=stage_timeout,
             interval=poll,
             description="funds available",
         )
@@ -166,7 +163,7 @@ def cash_flow(config, bridge, example_bank, seeded_links, run_ns):
             env_body_now,
             predicate=lambda b: _field(b, "funds_blocked_with_bank")
             == "FUNDS_BLOCK_SUCCESS",
-            timeout=remaining(),
+            timeout=stage_timeout,
             interval=poll,
             description="funds blocked",
         )
@@ -179,7 +176,7 @@ def cash_flow(config, bridge, example_bank, seeded_links, run_ns):
             batch_body,
             predicate=lambda b: _field(b, "sponsor_bank_dispatch_status")
             == "PROCESSED",
-            timeout=remaining(),
+            timeout=stage_timeout,
             interval=poll,
             description="sponsor bank dispatch",
         )
@@ -200,7 +197,7 @@ def cash_flow(config, bridge, example_bank, seeded_links, run_ns):
         r["distrib_ok"], _ = poll_until(
             all_credited,
             predicate=lambda ok: ok is True,
-            timeout=remaining(),
+            timeout=stage_timeout,
             interval=poll,
             description="bank distributed to beneficiaries",
         )
