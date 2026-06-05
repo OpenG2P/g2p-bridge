@@ -314,9 +314,14 @@ else
 fi
 
 # ========== STEP 5: PVCs ==========
-_blue "==> [5/6] Delete PVCs"
+# Includes the sanity-suite results PVC (<release>-sanity-results). Newer charts
+# no longer annotate it helm.sh/resource-policy: keep, but older installs may —
+# kubectl delete ignores that annotation (it is helm-only), so the label sweep
+# removes it regardless. The explicit by-name delete is belt-and-suspenders.
+_blue "==> [5/6] Delete PVCs (incl. sanity test-results volume)"
 if [[ "$NAMESPACE_EXISTS" == true ]]; then
   run "kubectl -n '$NAMESPACE' delete pvc -l 'app.kubernetes.io/instance=$RELEASE' --ignore-not-found"
+  run "kubectl -n '$NAMESPACE' delete pvc '${RELEASE}-sanity-results' --ignore-not-found"
 else
   echo "  (skipped — namespace '$NAMESPACE' not present; any orphan PVs handled in step 6)"
 fi
@@ -354,3 +359,13 @@ fi
 _yellow "Note: the Keycloak realm/client (clientId 'g2p-bridge') is left intact —"
 _yellow "      it lives in Keycloak, not in this namespace. keycloak-init is"
 _yellow "      idempotent, so reinstalling reuses it."
+echo
+_green "Test data removed by this run:"
+_green "  - Sanity results PVC ($RELEASE-sanity-results) and its PV"
+_green "  - ALL rows in $BRIDGE_DB (incl. TEST_SANITY_* disbursements/envelopes)"
+[[ "$KEEP_EXAMPLE_BANK_DB" == false ]] && \
+_green "  - ALL rows in $EXAMPLE_BANK_DB (incl. TEST_SANITY_* accounts/payments)"
+_yellow "Not touched: SPAR ID->FA test mappings (TEST_SANITY_*) live in the SPAR"
+_yellow "      release's own database, not this one. The sanity suite unlinks them"
+_yellow "      at end-of-run; for a crashed run use the suite's teardown:"
+_yellow "      cd test/sanity && python teardown.py --all"

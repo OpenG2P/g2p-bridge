@@ -23,42 +23,48 @@ questions:
   default: false
   label: Enable In-kind Disbursements
   group: Disbursement
-- variable: global.sponsorBankConfigurations.default.sponsor_bank_code
-  description: Sponsor/treasury bank code to disburse from (digital cash). Used when in-kind is off.
-  type: string
-  label: Sponsor Bank Code
-  group: Disbursement
-  show_if: global.g2pBridgeInKindEnabled=false
-- variable: global.sponsorBankConfigurations.default.program_account_number
-  description: Sponsor/treasury program account number to disburse from (digital cash).
-  type: string
-  label: Sponsor Account Number
-  group: Disbursement
-  show_if: global.g2pBridgeInKindEnabled=false
-- variable: global.sponsorBankConfigurations.default.program_account_branch_code
-  description: Sponsor/treasury program account branch code (digital cash).
-  type: string
-  label: Sponsor Account Branch Code
-  group: Disbursement
-  show_if: global.g2pBridgeInKindEnabled=false
-- variable: global.sponsorBankConfigurations.default.account_currency
-  description: Currency of the sponsor/treasury account (also used to seed the Example Bank account).
-  type: string
-  label: Sponsor Account Currency
-  group: Disbursement
-  show_if: global.g2pBridgeInKindEnabled=false
-- variable: global.sponsorBankConfigurations.default.available_balance
-  description: Opening balance for the seeded Example Bank treasury account.
-  type: string
-  label: Treasury Opening Balance
-  group: Disbursement
-  show_if: global.g2pBridgeInKindEnabled=false
+# --- Treasury / sponsor account (digital cash only; hidden when in-kind is on) ---
+# The "default" sponsor entry below is the bundled-demo convenience. Its shipped
+# values are DEMO DEFAULTS pointing at the Example Bank simulator; replace them
+# with your real treasury account when using a real bank. (Production setups can
+# configure the full per-program sponsorBankConfigurations map in values.yaml.)
 - variable: global.seedTreasuryAccount
-  description: Seed the treasury/sponsor account into the bundled Example Bank (it has no account-creation API). Disable in environments using a real bank.
+  description: Seed the treasury/sponsor account into the bundled Example Bank (it has no account-creation API), using the sponsor details below. Turn OFF when pointing at a real bank — the real bank already holds the account and its balance.
   type: boolean
   default: true
   label: Seed Example Bank Treasury Account
   group: Disbursement
+  show_if: global.g2pBridgeInKindEnabled=false&&exampleBank.enabled=true
+- variable: global.sponsorBankConfigurations.default.sponsor_bank_code
+  description: "Bank code of the treasury/sponsor account the Bridge debits when disbursing digital cash. DEMO DEFAULT for the bundled Example Bank — set it to your real treasury bank code when using a real bank."
+  type: string
+  label: Sponsor Bank Code (demo default)
+  group: Disbursement
+  show_if: global.g2pBridgeInKindEnabled=false
+- variable: global.sponsorBankConfigurations.default.program_account_number
+  description: "Account number of the treasury/sponsor account the Bridge disburses from. DEMO DEFAULT for the bundled Example Bank — set it to your real treasury account number when using a real bank."
+  type: string
+  label: Sponsor Account Number (demo default)
+  group: Disbursement
+  show_if: global.g2pBridgeInKindEnabled=false
+- variable: global.sponsorBankConfigurations.default.program_account_branch_code
+  description: "Branch code of the treasury/sponsor account. DEMO DEFAULT for the bundled Example Bank — set it to your real treasury branch code when using a real bank."
+  type: string
+  label: Sponsor Account Branch Code (demo default)
+  group: Disbursement
+  show_if: global.g2pBridgeInKindEnabled=false
+- variable: global.sponsorBankConfigurations.default.account_currency
+  description: "Currency of the treasury/sponsor account (also used when seeding the Example Bank). DEMO DEFAULT — set it to your real treasury account currency when using a real bank."
+  type: string
+  label: Sponsor Account Currency (demo default)
+  group: Disbursement
+  show_if: global.g2pBridgeInKindEnabled=false
+- variable: global.sponsorBankConfigurations.default.available_balance
+  description: "SAMPLE / SEED DATA ONLY — the starting balance written to the bundled Example Bank treasury account when seeding. Ignored for a real bank (which already holds the funds); only applies when 'Seed Example Bank Treasury Account' is on."
+  type: string
+  label: Treasury Opening Balance (sample / seed only)
+  group: Disbursement
+  show_if: global.g2pBridgeInKindEnabled=false&&exampleBank.enabled=true&&global.seedTreasuryAccount=true
 
 # --------------------------- Example Bank ---------------------------
 - variable: exampleBank.enabled

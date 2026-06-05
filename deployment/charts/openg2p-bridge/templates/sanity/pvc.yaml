@@ -6,9 +6,10 @@ metadata:
   name: {{ .Release.Name }}-sanity-results
   labels: {{- include "common.labels.standard" (dict "customLabels" .Values.commonLabels "context" $) | nindent 4 }}
     app.kubernetes.io/component: sanity
-  annotations:
-    # Keep results across helm upgrades/uninstall-recreate cycles.
-    "helm.sh/resource-policy": keep
+  # NOTE: deliberately NOT annotated helm.sh/resource-policy: keep — this is a
+  # test-artifact volume, so it must be removed on uninstall (helm, Rancher, or
+  # uninstall-bridge.sh) along with all other test data. A `helm upgrade` never
+  # deletes a still-rendered PVC, so reports survive upgrades regardless.
 spec:
   accessModes:
     - {{ $r.accessMode }}
