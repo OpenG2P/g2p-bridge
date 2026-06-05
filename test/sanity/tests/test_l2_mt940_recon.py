@@ -3,14 +3,27 @@
 Ported from the legacy ``test/functional-test/Negative Conditions for MT940``
 script, but kept **black-box**: instead of injecting rows into the bank's
 database, it uploads a crafted MT940 statement (in the exact wire format the
-bundled Example Bank emits) whose debit references a disbursement id the Bridge
+bundled Example Bank emits) whose debit references a reconciliation id the Bridge
 has never seen, then polls ``get_disbursement_status`` until the asynchronous
 MT940 processor records the reconciliation ERROR.
 
-Covered: ``INVALID_DISBURSEMENT_ID`` — a debit whose reconciliation id matches no
-disbursement. This is self-contained (no pre-existing disbursement needed) and
-exercises the full upload -> async parse -> reconciliation-error -> status-readout
-pipeline.
+Covered: ``INVALID_RECONCILIATION_ID`` — a debit whose reconciliation id matches
+no disbursement (nor any batch-control-geo). This is self-contained (no
+pre-existing disbursement needed) and exercises the full upload -> async parse ->
+reconciliation-error -> status-readout pipeline. (The MT940 processor raises
+``INVALID_RECONCILIATION_ID`` for an unmatched debit; ``INVALID_DISBURSEMENT_ID``
+is a related code used elsewhere.)
+
+Two wire-format constraints were confirmed against a live deployment and drive
+the test design:
+
+* The MT940 tag-61 ``customer_reference`` field is limited to **16 characters**,
+  and the Example Bank connector uses it verbatim as the reconciliation id. So
+  the test uses a short (<=16 char) run-unique id — a full-length run id would be
+  silently truncated and never matched on read-back.
+* The statement must be drawn on the treasury account (tag ``:25:``) — the Bridge
+  resolves the bank connector from that account number via the sponsor-bank
+  config.
 
 The legacy script's other two conditions are intentionally NOT reproduced here,
 for concrete reasons confirmed against a live deployment:
@@ -23,9 +36,6 @@ for concrete reasons confirmed against a live deployment:
 * ``DUPLICATE_DISBURSEMENT`` — requires a *previously successful* reconciliation
   to duplicate, i.e. a real disbursement that already has a DisbursementRecon.
   That depends on a completed happy-path e2e run; it is left as a follow-on.
-
-The statement must be drawn on the treasury account (tag ``:25:``) — the Bridge
-resolves the bank connector from that account number via the sponsor-bank config.
 """
 
 from __future__ import annotations
@@ -109,10 +119,13 @@ def mt940_recon(config, bridge, run_ns):
     account = config.treasury_account_number
     today = datetime.date.today()
 
-    unknown_id = f"{run_ns.run_id}_RECON_NOEXIST"
+    # tag-61 customer_reference is max 16 chars; keep it short but run-unique so
+    # we don't collide with error recons left by earlier runs.
+    short = run_ns.run_token.split("_")[-1]
+    unknown_id = f"TST{short}NORECON"[:16]
     statement = _statement(
         account,
-        f"{run_ns.run_id}_STMT",
+        "STMT1",
         currency,
         today,
         [_debit(today, 1000, unknown_id, "BR1", "BENE_1")],
@@ -122,10 +135,10 @@ def mt940_recon(config, bridge, run_ns):
 
     ok, last = poll_until(
         lambda: bridge.get_disbursement_status(run_ns.request_id(), [unknown_id])[1],
-        predicate=lambda b: "INVALID_DISBURSEMENT_ID" in _error_reasons(b),
+        predicate=lambda b: "INVALID_RECONCILIATION_ID" in _error_reasons(b),
         timeout=config.e2e_recon_timeout_seconds,
         interval=config.e2e_poll_interval_seconds,
-        description="INVALID_DISBURSEMENT_ID recon error",
+        description="INVALID_RECONCILIATION_ID recon error",
     )
     return {
         "upload_status": up_status,
