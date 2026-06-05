@@ -261,6 +261,21 @@ if [[ "$ASSUME_YES" == false && "$DRY_RUN" == false ]]; then
   fi
 fi
 
+# ========== STEP 0: stop in-flight hook Jobs FIRST ==========
+# The sanity suite (and other helm-hook Jobs) run as hook resources. If a test
+# pod is still running or wedged, `helm uninstall --wait` blocks on it for the
+# full --timeout (5m). Delete the Jobs up front (--wait=false so we don't block)
+# and force-remove their now-orphaned pods, so the uninstall below returns
+# promptly. Any Deployment pods that briefly respawn here are removed by helm
+# seconds later — harmless.
+_blue "==> [0/6] Stop in-flight Jobs (sanity hook etc.) so the uninstall doesn't hang"
+if [[ "$NAMESPACE_EXISTS" == true ]]; then
+  run "kubectl -n '$NAMESPACE' delete job -l 'app.kubernetes.io/instance=$RELEASE' --ignore-not-found --wait=false"
+  run "kubectl -n '$NAMESPACE' delete pod -l 'app.kubernetes.io/instance=$RELEASE' --ignore-not-found --force --grace-period=0 --wait=false"
+else
+  echo "  (skipped — namespace '$NAMESPACE' not present)"
+fi
+
 # ========== STEP 1: helm uninstall ==========
 _blue "==> [1/6] Helm uninstall"
 if [[ "$HELM_RELEASE_EXISTS" == true ]]; then
