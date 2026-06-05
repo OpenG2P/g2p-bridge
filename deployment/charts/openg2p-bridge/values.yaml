@@ -955,9 +955,13 @@ sanity:
   # Bene-portal tests off (enforces OIDC auth the suite does not yet do).
   benePortalEnabled: false
 
+  # The test pod is a short-lived pytest run that is almost entirely I/O-bound
+  # (it spends its time waiting on the Bridge's async pipeline), so it needs very
+  # little CPU/RAM. The limit keeps headroom for pytest + html-report generation
+  # so a run is never OOM-killed.
   resources:
-    requests: { cpu: 50m, memory: 128Mi }
-    limits:   { cpu: "1", memory: 512Mi }
+    requests: { cpu: 25m, memory: 64Mi }
+    limits:   { cpu: 500m, memory: 256Mi }
 
   # Persistent results store. Shared by the test Job (write) and the viewer
   # (read). When the viewer is enabled this must be ReadWriteMany (both pods
@@ -978,3 +982,9 @@ sanity:
     # g2p-bridge and g2p-bridge2) don't collide. Override per environment.
     hostname: '{{ .Release.Name }}-sanity.{{ .Values.global.namespace }}.openg2p.org'
     gateway: "internal"
+    # Static nginx serving pre-generated report files — it streams from disk and
+    # holds almost nothing in memory regardless of report size, so it runs in a
+    # tiny footprint. Tune here if a very large report set needs more.
+    resources:
+      requests: { cpu: 5m, memory: 16Mi }
+      limits:   { cpu: 50m, memory: 64Mi }
