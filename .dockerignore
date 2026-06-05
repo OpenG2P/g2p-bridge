@@ -14,5 +14,19 @@
 
 # Unrelated to the api/celery image builds
 deployment/
-test/
+# Exclude test/ contents EXCEPT test/sanity (needed by the sanity image). Use
+# test/* (not test/) so the parent dir isn't excluded — required for the
+# negation below to take effect.
+test/*
+!test/sanity
+# ...but not local-only artifacts inside it (env wins over a baked config.yaml).
+test/sanity/venv
+test/sanity/.venv*
+test/sanity/results
+test/sanity/.sanity-runs
+test/sanity/config.yaml
+# Re-exclude caches under test/sanity (the !test/sanity negation above otherwise
+# overrides the global **/__pycache__ rules for this path).
+test/sanity/**/__pycache__
+test/sanity/**/.pytest_cache
 example-bank/
