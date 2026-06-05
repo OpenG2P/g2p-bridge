@@ -281,7 +281,7 @@ class DisbursementEnvelopeService(BaseService):
             _logger.error("Invalid disbursement envelope ID")
             raise DisbursementEnvelopeException(G2PBridgeErrorCodes.INVALID_DISBURSEMENT_ENVELOPE_ID)
         if (
-            disbursement_envelope_payload.benefir_program_id is None
+            disbursement_envelope_payload.benefit_program_id is None
             or disbursement_envelope_payload.benefit_program_id == ""
         ):
             _logger.error("Invalid benefit program ID")

@@ -80,7 +80,7 @@ class AccountStatementService(BaseService):
                 request_id="",
                 response_status=G2PResponseStatus.ERROR,
                 response_error_code=code.value,
-                response_error_message=code.description,
+                response_error_message=code.value,
                 response_timestamp=datetime.now(),
             ),
             response_body=AccountStatementResponseBody(

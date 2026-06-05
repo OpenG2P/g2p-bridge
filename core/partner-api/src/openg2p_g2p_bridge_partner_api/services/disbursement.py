@@ -342,11 +342,11 @@ class DisbursementService(BaseService):
                 request_id=disbursement_request.request_header.request_id,
                 response_status=G2PResponseStatus.ERROR,
                 response_error_code=code.value,
-                response_error_message=code.description,
+                response_error_message=code.value,
                 response_timestamp=datetime.now(),
             ),
             response_body=DisbursementResponseBody(
-                response_payload=disbursement_payloads,
+                response_payload=disbursement_payloads or [],
             ),
         )
         _logger.info("Disbursement Error Response Constructed!")
