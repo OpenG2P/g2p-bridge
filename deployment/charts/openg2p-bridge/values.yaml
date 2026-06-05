@@ -901,3 +901,66 @@ exampleBankCeleryWorker:
     - 'until pg_isready -U ${EXAMPLE_BANK_CELERY_DB_USERNAME} -h ${EXAMPLE_BANK_CELERY_DB_HOSTNAME} -p ${EXAMPLE_BANK_CELERY_DB_PORT:-5432} -d ${EXAMPLE_BANK_CELERY_DB_DBNAME:-example_bank_db}; do sleep 3; done'
     containerSecurityContext:
       enabled: false
+
+# -----------------------------------------------------------------------------
+# Regression sanity suite (optional). Disabled by default — purely additive.
+#   * a Helm test hook Job runs the suite on `helm test <release>` and can be
+#     triggered by CD right after `helm upgrade`.
+#   * results are written to a PVC; a small nginx "viewer" serves report.html.
+# Auto (helm test) runs smoke + contract ONLY (creates no data). Set
+# sanity.runE2e=true to include the data-creating e2e (test environments only).
+# -----------------------------------------------------------------------------
+sanity:
+  enabled: false
+
+  image:
+    repository: openg2p/openg2p-g2p-bridge-sanity
+    tag: develop
+    pullPolicy: Always
+
+  # false = smoke + contract only (no data). true = full suite incl. e2e.
+  runE2e: false
+  # When false (default) the run NEVER fails the install/upgrade — read the report
+  # for pass/fail. Set true only if you want a failing sanity run to fail the deploy.
+  failOnError: false
+
+  # Targets the suite hits — built ENTIRELY from already-defined chart values
+  # (component hostnames + their openapiRootPath), so they track whatever the
+  # APIs are actually served on. The pod resolves the public hostnames via DNS.
+  bridgeBaseUrl: 'https://{{ tpl .Values.global.g2pBridgeHostname $ }}{{ .Values.g2pBridgeApi.openapiRootPath }}'
+  benePortalBaseUrl: 'https://{{ tpl .Values.global.benePortalHostname $ }}{{ .Values.openg2pG2pBridgeBenePortalApi.openapiRootPath }}'
+  exampleBankBaseUrl: 'https://{{ tpl .Values.global.exampleBankHostname $ }}{{ .Values.exampleBankApi.openapiRootPath }}'
+  # SPAR mapper PUBLIC ingress (note the doubled /mapper). SPAR is a separate
+  # deployment with no variable in this chart, so set it per environment
+  # (surfaced in questions.yaml). Defaults to the conventional public host.
+  sparMapperBaseUrl: 'https://spar.{{ .Values.global.namespace }}.openg2p.org/api/mapper/mapper'
+
+  verifyTls: true
+  # SPAR BANK strategy id whose construct matches the Bridge deconstruct (chart id 5).
+  sparBankStrategyId: 5
+  # Bene-portal tests off (enforces OIDC auth the suite does not yet do).
+  benePortalEnabled: false
+
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits:   { cpu: "1", memory: 512Mi }
+
+  # Persistent results store. Shared by the test Job (write) and the viewer
+  # (read). When the viewer is enabled this must be ReadWriteMany (both pods
+  # mount it). With the viewer disabled, ReadWriteOnce is fine.
+  results:
+    storageClass: ""
+    accessMode: ReadWriteMany
+    size: 1Gi
+
+  # Long-running nginx that serves the latest report at the hostname below.
+  viewer:
+    enabled: true
+    image:
+      repository: nginx
+      tag: 1.27-alpine
+      pullPolicy: IfNotPresent
+    # Derived from the RELEASE name so two releases in one namespace (e.g.
+    # g2p-bridge and g2p-bridge2) don't collide. Override per environment.
+    hostname: '{{ .Release.Name }}-sanity.{{ .Values.global.namespace }}.openg2p.org'
+    gateway: "internal"

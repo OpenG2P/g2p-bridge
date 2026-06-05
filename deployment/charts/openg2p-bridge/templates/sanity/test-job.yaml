@@ -1,0 +1,83 @@
+{{- if .Values.sanity.enabled -}}
+{{- $s := .Values.sanity -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Name }}-sanity
+  labels: {{- include "common.labels.standard" (dict "customLabels" .Values.commonLabels "context" $) | nindent 4 }}
+    app.kubernetes.io/component: sanity
+  annotations:
+    # Runs automatically on every install/upgrade — i.e. each time you click
+    # Install / Upgrade (or Redeploy) in the Rancher UI. No CLI needed.
+    "helm.sh/hook": post-install,post-upgrade
+    # Run after everything else is created.
+    "helm.sh/hook-weight": "5"
+    # Keep the finished pod around (so its logs / report stay viewable); it is
+    # replaced on the next install/upgrade.
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  backoffLimit: 0
+  template:
+    metadata:
+      labels: {{- include "common.labels.matchLabels" (dict "customLabels" .Values.podLabels "context" $) | nindent 8 }}
+        app.kubernetes.io/component: sanity
+    spec:
+      restartPolicy: Never
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if $s.viewer.enabled }}
+      volumes:
+        - name: results
+          persistentVolumeClaim:
+            claimName: {{ .Release.Name }}-sanity-results
+      {{- end }}
+      containers:
+        - name: sanity
+          image: "{{ $s.image.repository }}:{{ $s.image.tag }}"
+          imagePullPolicy: {{ $s.image.pullPolicy }}
+          {{- if $s.viewer.enabled }}
+          volumeMounts:
+            - name: results
+              mountPath: /results
+          {{- end }}
+          resources: {{- toYaml $s.resources | nindent 12 }}
+          env:
+            - name: SANITY_NAMESPACE
+              value: {{ .Values.global.namespace | quote }}
+            - name: SANITY_BRIDGE_BASE_URL
+              value: {{ tpl $s.bridgeBaseUrl $ | quote }}
+            - name: SANITY_BENE_PORTAL_BASE_URL
+              value: {{ tpl $s.benePortalBaseUrl $ | quote }}
+            - name: SANITY_EXAMPLE_BANK_BASE_URL
+              value: {{ tpl $s.exampleBankBaseUrl $ | quote }}
+            - name: SANITY_SPAR_MAPPER_BASE_URL
+              value: {{ tpl $s.sparMapperBaseUrl $ | quote }}
+            - name: SANITY_VERIFY_TLS
+              value: {{ $s.verifyTls | quote }}
+            - name: SANITY_TREASURY_ACCOUNT_NUMBER
+              value: {{ .Values.global.sponsorBankConfigurations.default.program_account_number | quote }}
+            - name: SANITY_TREASURY_CURRENCY
+              value: {{ .Values.global.sponsorBankConfigurations.default.account_currency | quote }}
+            - name: SANITY_BENEFICIARY_BANK_CODE
+              value: {{ tpl .Values.global.g2pBrdidgeExampleBankCode $ | quote }}
+            - name: SANITY_SPAR_BANK_STRATEGY_ID
+              value: {{ $s.sparBankStrategyId | quote }}
+            - name: SANITY_RUN_E2E
+              value: {{ $s.runE2e | quote }}
+            # When false, the Job exits 0 even if tests fail, so a sanity failure
+            # never fails the install/upgrade. Read the report/logs for results.
+            - name: SANITY_FAIL_ON_ERROR
+              value: {{ $s.failOnError | quote }}
+            - name: SANITY_BENE_PORTAL_ENABLED
+              value: {{ $s.benePortalEnabled | quote }}
+            # If inbound signature validation is on, the write tests self-skip.
+            - name: SANITY_KEYMANAGER_AUTH_ENABLED
+              value: {{ .Values.global.g2pBridgeKeymanagerAuthEnabled | quote }}
+            - name: SANITY_CLEANUP_ON_TEARDOWN
+              value: "true"
+            - name: SANITY_RESULTS_DIR
+              value: "/results"
+            - name: SANITY_WRITE_RESULTS
+              value: {{ $s.viewer.enabled | quote }}
+{{- end }}

@@ -27,7 +27,7 @@ runs when its own component changes:
 
 - `pre-commit.yml` — runs each sub-project's own pre-commit config.
 - `core-test.yml`, `example-bank-test.yml` — test + coverage.
-- `docker-build-apis.yml`, `docker-build-celery.yml`, `docker-build-example-bank.yml` — build/push images. **The image tag matches the g2p-bridge repository ref** (branch name or git tag).
+- `docker-build-apis.yml`, `docker-build-celery.yml`, `docker-build-example-bank.yml`, `docker-build-sanity.yml` — build/push images. **The image tag matches the g2p-bridge repository ref** (branch name or git tag).
 - `helm-publish.yml` — package and publish every Helm chart under `deployment/charts/` (G2P Bridge + example bank).
 
 ## Notes

@@ -246,3 +246,44 @@ questions:
   type: string
   label: Redis Service Name
   group: Infrastructure
+
+# ----------------------------- Sanity suite -------------------------
+- variable: sanity.enabled
+  description: Deploy the regression sanity suite (runs on each install/upgrade and serves an HTML report). Disabled by default.
+  type: boolean
+  default: false
+  label: Enable Sanity Suite
+  group: Sanity Suite
+- variable: sanity.runE2e
+  description: Include the full end-to-end flow (CREATES test data and moves treasury funds). Leave off for smoke+contract only. Test environments only.
+  type: boolean
+  default: false
+  label: Run E2E (creates data)
+  group: Sanity Suite
+  show_if: sanity.enabled=true
+- variable: sanity.failOnError
+  description: Fail the install/upgrade if the sanity run fails. Off = the deploy is never affected; read the report for pass/fail.
+  type: boolean
+  default: false
+  label: Fail Deploy On Sanity Failure
+  group: Sanity Suite
+  show_if: sanity.enabled=true
+- variable: sanity.sparMapperBaseUrl
+  description: SPAR Mapper partner API base URL (public ingress, note the doubled /mapper). Needed for the e2e seeding.
+  type: string
+  label: SPAR Mapper Base URL
+  group: Sanity Suite
+  show_if: sanity.enabled=true
+- variable: sanity.viewer.enabled
+  description: Serve the HTML report via a small nginx viewer (needs ReadWriteMany storage). If off, view results via pod logs.
+  type: boolean
+  default: true
+  label: Enable Report Viewer
+  group: Sanity Suite
+  show_if: sanity.enabled=true
+- variable: sanity.viewer.hostname
+  description: Hostname for the sanity report viewer (defaults to <release>-sanity.<namespace>.<domain>).
+  type: string
+  label: Report Viewer Hostname
+  group: Sanity Suite
+  show_if: sanity.enabled=true

@@ -1,0 +1,29 @@
+{{- if and .Values.sanity.enabled .Values.sanity.viewer.enabled -}}
+{{- $v := .Values.sanity.viewer -}}
+{{- $hostname := tpl $v.hostname $ -}}
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: {{ .Release.Name }}-sanity-viewer
+  labels: {{- include "common.labels.standard" (dict "customLabels" .Values.commonLabels "context" $) | nindent 4 }}
+    app.kubernetes.io/component: sanity-viewer
+spec:
+  hosts:
+    - {{ $hostname | quote }}
+  gateways:
+    - {{ $v.gateway | quote }}
+  http:
+    - headers:
+        request:
+          set:
+            x-forwarded-host: {{ $hostname | quote }}
+            x-forwarded-proto: https
+      match:
+        - uri:
+            prefix: /
+      route:
+        - destination:
+            host: {{ .Release.Name }}-sanity-viewer
+            port:
+              number: 80
+{{- end }}

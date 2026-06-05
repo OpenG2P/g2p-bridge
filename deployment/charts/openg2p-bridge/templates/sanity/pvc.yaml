@@ -1,0 +1,21 @@
+{{- if and .Values.sanity.enabled .Values.sanity.viewer.enabled -}}
+{{- $r := .Values.sanity.results -}}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Release.Name }}-sanity-results
+  labels: {{- include "common.labels.standard" (dict "customLabels" .Values.commonLabels "context" $) | nindent 4 }}
+    app.kubernetes.io/component: sanity
+  annotations:
+    # Keep results across helm upgrades/uninstall-recreate cycles.
+    "helm.sh/resource-policy": keep
+spec:
+  accessModes:
+    - {{ $r.accessMode }}
+  {{- if $r.storageClass }}
+  storageClassName: {{ $r.storageClass | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ $r.size }}
+{{- end }}
