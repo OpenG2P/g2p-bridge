@@ -33,4 +33,7 @@ USER ${container_user}
 
 ENV PYTHONUNBUFFERED=1
 
-CMD celery -A main.celery_app worker --loglevel=info --beat
+# --schedule must point at a writable path: the app dir is read-only for the
+# non-root container user, so the default relative 'celerybeat-schedule' file
+# fails with "_gdbm.error: [Errno 13] Permission denied". /tmp is writable.
+CMD celery -A main.celery_app worker --loglevel=info --beat --schedule=/tmp/celery-beat-schedule.db

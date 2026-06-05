@@ -1,4 +1,4 @@
-name: Build & Push Example Bank Dockers
+name: Publish Example Bank Dockers
 
 # Builds the example-bank images from the LOCAL in-repo source. The build
 # context is the example-bank/ folder so each service Dockerfile-git can install

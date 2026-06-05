@@ -1,4 +1,4 @@
-name: Build & Push G2P Bridge Celery Docker
+name:  Publish G2P Bridge Celery Docker
 
 # Single celery image for both roles (worker and beat producer); the role is
 # selected at runtime via CELERY_APP / CELERY_OPTS, set by the Helm chart.

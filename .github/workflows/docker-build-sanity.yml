@@ -1,4 +1,4 @@
-name: Build & Push G2P Bridge Sanity Docker
+name: Publish G2P Bridge Sanity Docker
 
 # Builds the regression sanity suite image from local in-repo source
 # (test/sanity/). The image tag is the g2p-bridge repository ref.

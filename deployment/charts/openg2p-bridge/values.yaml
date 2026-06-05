@@ -807,6 +807,20 @@ exampleBankCeleryBeat:
     runAsUser: 1001
     runAsNonRoot: true
 
+  # Override the image CMD so celery beat writes its schedule DB to a writable
+  # path. The app dir is read-only for the non-root user, so the default
+  # relative 'celerybeat-schedule' file fails with "Permission denied"
+  # (_gdbm.error) and the payment-processing beats never fire reliably.
+  command:
+    - celery
+  args:
+    - "-A"
+    - main.celery_app
+    - worker
+    - "--loglevel=info"
+    - "--beat"
+    - "--schedule=/tmp/celery-beat-schedule.db"
+
   envVars:
     EXAMPLE_BANK_CELERY_CELERY_WORKER_TASK_QUEUE: '{{ tpl .Values.global.exampleBankQueue $ }}'
     EXAMPLE_BANK_CELERY_DB_HOSTNAME: '{{ .Values.global.postgresqlHost }}'

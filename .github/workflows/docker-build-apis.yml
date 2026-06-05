@@ -1,4 +1,4 @@
-name: Build & Push G2P Bridge API Dockers
+name: Publish G2P Bridge API Dockers
 
 # Builds the API images from the LOCAL in-repo source (core/). The image tag is
 # the g2p-bridge repository ref (branch name or git tag).

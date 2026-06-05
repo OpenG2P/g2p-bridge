@@ -115,6 +115,17 @@ def process_payments_worker(payment_request_batch_id: str):
             initiate_payment_batch_request.payment_initiate_attempts += 1
             initiate_payment_batch_request.payment_status = PaymentStatus.SUCCESS
             _logger.info(f"Payments processed for batch: {payment_request_batch_id}")
+            # An empty batch (no payment requests) has nothing to debit/credit and
+            # no remitting account to draw a statement from. Mark it SUCCESS and
+            # return instead of indexing into an empty list, which would raise
+            # IndexError, roll the batch back to PENDING, and loop forever.
+            if not initiate_payment_requests:
+                _logger.warning(
+                    f"No payment requests for batch {payment_request_batch_id}; "
+                    "marking SUCCESS without an account statement."
+                )
+                session.commit()
+                return
             account_statement = AccountStatement(
                 account_number=initiate_payment_requests[0].remitting_account,
                 account_statement_generation_status=AccountStatementStatus.PENDING,
