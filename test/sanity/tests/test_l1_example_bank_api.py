@@ -35,8 +35,10 @@ def test_block_funds_unknown_account(example_bank, config):
 
 
 @pytest.mark.xfail(
-    reason="generate_account_statement returns 500 'Unknown Error' "
-    "(e.g. when the account has no transactions yet) — robustness gap",
+    reason="generate_account_statement can return 500 'Unknown Error' when the "
+    "controller hits an unhandled error (e.g. enqueuing the generator task) "
+    "instead of a graceful response — robustness gap. Hardened in the controller; "
+    "xpasses once the rebuilt example-bank image is deployed.",
     strict=False,
 )
 def test_generate_account_statement_reachable(example_bank, config):

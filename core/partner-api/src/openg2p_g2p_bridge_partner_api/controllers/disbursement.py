@@ -3,6 +3,7 @@ from typing import Annotated, List
 
 from fastapi import Depends
 from openg2p_fastapi_common.controller import BaseController
+from openg2p_g2p_bridge_models.errors.codes import G2PBridgeErrorCodes
 from openg2p_g2p_bridge_models.errors.exceptions import (
     DisbursementException,
     RequestValidationException,
@@ -108,6 +109,19 @@ class DisbursementController(BaseController):
             error_response: DisbursementResponse = (
                 await self.disbursement_service.construct_disbursement_error_response(
                     disbursement_request, e.code, e.disbursement_payloads
+                )
+            )
+            return error_response
+        except Exception as e:
+            # Safety net: an unexpected error (e.g. row-lock contention while the
+            # async pipeline is processing the same disbursement, or missing
+            # envelope-control state) must not leak as an HTTP 500 "Unknown Error".
+            _logger.exception(f"Unexpected error cancelling disbursements: {e}")
+            error_response: DisbursementResponse = (
+                await self.disbursement_service.construct_disbursement_error_response(
+                    disbursement_request,
+                    G2PBridgeErrorCodes.DATABASE_TRANSACTION_ERROR,
+                    disbursement_request.request_body.request_payload,
                 )
             )
             return error_response

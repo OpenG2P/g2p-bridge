@@ -3,6 +3,7 @@ from typing import Annotated
 
 from fastapi import Depends
 from openg2p_fastapi_common.controller import BaseController
+from openg2p_g2p_bridge_models.errors.codes import G2PBridgeErrorCodes
 from openg2p_g2p_bridge_models.errors.exceptions import (
     DisbursementEnvelopeException,
     RequestValidationException,
@@ -119,6 +120,17 @@ class DisbursementEnvelopeController(BaseController):
             error_response: DisbursementEnvelopeResponse = (
                 await self.disbursement_envelope_service.construct_disbursement_envelope_error_response(
                     disbursement_envelope_request, e.code
+                )
+            )
+            return error_response
+        except Exception as e:
+            # Safety net: an unexpected error must not leak as an HTTP 500
+            # "Unknown Error" — return a graceful G2P error envelope instead.
+            _logger.exception(f"Unexpected error cancelling disbursement envelope: {e}")
+            error_response: DisbursementEnvelopeResponse = (
+                await self.disbursement_envelope_service.construct_disbursement_envelope_error_response(
+                    disbursement_envelope_request,
+                    G2PBridgeErrorCodes.DATABASE_TRANSACTION_ERROR,
                 )
             )
             return error_response

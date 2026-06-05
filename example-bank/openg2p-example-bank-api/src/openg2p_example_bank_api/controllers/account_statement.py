@@ -50,20 +50,31 @@ class AccountStatementController(BaseController):
                     error_message="Account not found",
                 )
 
-            account_statement = AccountStatement(
-                account_number=account_statement_request.program_account_number,
-                active=True,
-            )
-            session.add(account_statement)
-            await session.commit()
+            # Persisting the statement row and enqueuing the generator task can
+            # fail (e.g. the Celery broker is unreachable). Catch it and return a
+            # graceful response instead of leaking an HTTP 500 "Unknown Error".
+            try:
+                account_statement = AccountStatement(
+                    account_number=account_statement_request.program_account_number,
+                    active=True,
+                )
+                session.add(account_statement)
+                await session.commit()
 
-            # Create a new task to generate the account statement
-            _logger.info("Account statement generation task created")
-            celery_app.send_task(
-                "account_statement_generator_worker",
-                args=(account_statement.id,),
-                queue=_config.celery_worker_task_queue,
-            )
+                # Create a new task to generate the account statement
+                _logger.info("Account statement generation task created")
+                celery_app.send_task(
+                    "account_statement_generator_worker",
+                    args=(account_statement.id,),
+                    queue=_config.celery_worker_task_queue,
+                )
+            except Exception as e:
+                await session.rollback()
+                _logger.error(f"Error generating account statement: {e}")
+                return AccountStatementResponse(
+                    status="failed",
+                    error_message=f"Could not generate account statement: {e}",
+                )
 
             return AccountStatementResponse(
                 status="success", account_statement_id=str(account_statement.id)
