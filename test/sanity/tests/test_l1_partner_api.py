@@ -4,12 +4,16 @@ These use bogus/invalid inputs on purpose so they create no real data; they
 verify each endpoint is reachable, validates, and returns the G2PConnect
 envelope. The happy-path create flow is exercised by the L2 e2e test.
 
-KNOWN ROBUSTNESS GAPS (xfail): a few endpoints return HTTP 500
+KNOWN ROBUSTNESS GAP (xfail): ``cancel_disbursements`` still returns HTTP 500
 ``{"code":"G2P-REQ-100","message":"Unknown Error"}`` on not-found / invalid
 references instead of a graceful 200 ERROR envelope (as create_envelopes and the
-get_* endpoints do). These are marked xfail(strict=False) so they surface in the
-report without failing a healthy run, and will xpass once the Bridge handles
-those inputs gracefully.
+get_* endpoints do). It is marked xfail(strict=False) so it surfaces in the
+report without failing a healthy run, and will xpass once the Bridge handles that
+input gracefully.
+
+(``create_disbursements`` and ``amend_disbursement_envelope`` previously shared
+this gap; they were fixed and now return graceful envelopes, so their xfail
+markers were removed — a future regression there will be a real failure.)
 """
 
 import pytest
@@ -45,7 +49,6 @@ def test_create_envelopes_validates(bridge, run_ns):
     _assert_envelope(status, body, "create_disbursement_envelopes")
 
 
-@xfail_ungraceful_500
 def test_create_disbursements_invalid_envelope(bridge, run_ns):
     status, body = bridge.create_disbursements(
         run_ns.request_id(),
@@ -66,7 +69,6 @@ def test_cancel_envelope(bridge, run_ns):
     _assert_envelope(status, body, "cancel_disbursement_envelope")
 
 
-@xfail_ungraceful_500
 def test_amend_envelope(bridge, run_ns):
     status, body = bridge.amend_envelope(run_ns.request_id(), {"id": BOGUS})
     _assert_envelope(status, body, "amend_disbursement_envelope")
