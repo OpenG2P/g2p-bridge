@@ -80,6 +80,11 @@ global:
   exampleBankDBSecret: '{{ .Release.Name }}-example-bank'
   exampleBankDBUserPasswordKey: bankuser
 
+  # SPAR mapper database (owned by the SPAR release; the bridge only reads it for
+  # the analytics read-only role / dashboards). Override if SPAR's DB is named
+  # differently in your environment.
+  sparDB: spar
+
   # In-kind disbursements (geo targeting, warehouse + agency allocation) require
   # the Registry and PBMS databases. Leave false for pure digital cash transfer,
   # where neither Registry nor PBMS is needed.
@@ -128,6 +133,32 @@ postgres-init:
       user: '{{ tpl .Values.global.exampleBankDBUser $ }}'
       secret: '{{ tpl .Values.global.exampleBankDBSecret $ }}'
       secretUserPasswordKey: '{{ tpl .Values.global.exampleBankDBUserPasswordKey $ }}'
+
+# ----------------------------- Superset analytics -----------------------------
+# Optional: create a read-only Postgres role for the platform Superset to connect
+# with, and publish its password in a Secret (the admin enters it once when
+# importing the G2P Bridge dashboards). Disabled by default — enable in
+# environments that run Superset and want the bridge dashboards. No coupling to
+# Superset: this just exposes a read-only credential any BI tool could use.
+supersetReadOnly:
+  enabled: true
+  roleName: superset_ro
+  # Secret holding the generated read-only password (kept stable across upgrades).
+  secretName: '{{ .Release.Name }}-superset-ro'
+  passwordKey: password
+  image:
+    repository: jbergknoff/postgresql-client
+    tag: latest
+    pullPolicy: IfNotPresent
+  # Databases to grant read-only SELECT on (all templated — no hardcoded release
+  # name). example_bank_db / spar are tolerated if absent (the grant just warns).
+  databases:
+    - '{{ tpl .Values.global.bridgeDB $ }}'
+    - '{{ tpl .Values.global.exampleBankDB $ }}'
+    - '{{ tpl .Values.global.sparDB $ }}'
+  # Postgres superuser secret (the same one postgres-init uses).
+  superuserSecret: commons-postgresql
+  superuserPasswordKey: postgres-password
 
 g2pBridgeApi:
   enabled: true

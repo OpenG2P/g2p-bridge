@@ -1,0 +1,56 @@
+{{- if .Values.supersetReadOnly.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Name }}-superset-ro-init
+  labels: {{- include "common.labels.standard" (dict "customLabels" .Values.commonLabels "context" $) | nindent 4 }}
+    app.kubernetes.io/component: superset-readonly
+  annotations:
+    # Runs after postgres-init (DBs created) and on every upgrade (by then the
+    # app has migrated, so the SELECT grants cover all tables).
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "20"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  backoffLimit: 2
+  template:
+    metadata:
+      labels: {{- include "common.labels.standard" (dict "customLabels" .Values.commonLabels "context" $) | nindent 8 }}
+        app.kubernetes.io/component: superset-readonly
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: grant
+          image: "{{ .Values.supersetReadOnly.image.repository }}:{{ .Values.supersetReadOnly.image.tag }}"
+          imagePullPolicy: {{ .Values.supersetReadOnly.image.pullPolicy }}
+          env:
+            - name: PGHOST
+              value: {{ tpl .Values.global.postgresqlHost $ | quote }}
+            - name: PGSUPERPASS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.supersetReadOnly.superuserSecret }}
+                  key: {{ .Values.supersetReadOnly.superuserPasswordKey }}
+            - name: ROPASS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ tpl .Values.supersetReadOnly.secretName $ }}
+                  key: {{ .Values.supersetReadOnly.passwordKey }}
+          command: ["sh", "-c"]
+          args:
+            - |
+              set -eu
+              ROLE="{{ .Values.supersetReadOnly.roleName }}"
+              export PGPASSWORD="$PGSUPERPASS"
+              echo "Ensuring read-only role $ROLE ..."
+              psql -h "$PGHOST" -U postgres -d postgres -v ON_ERROR_STOP=1 -c "DO \$do\$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname='$ROLE') THEN CREATE ROLE $ROLE LOGIN PASSWORD '$ROPASS'; ELSE ALTER ROLE $ROLE LOGIN PASSWORD '$ROPASS'; END IF; END \$do\$;"
+              for db in {{ range .Values.supersetReadOnly.databases }}{{ tpl . $ }} {{ end }}; do
+                echo "Granting read-only on $db ..."
+                if ! psql -h "$PGHOST" -U postgres -d postgres -c "GRANT CONNECT ON DATABASE \"$db\" TO $ROLE;"; then
+                  echo "  (skipping $db — not present)"; continue
+                fi
+                psql -h "$PGHOST" -U postgres -d "$db" -c "GRANT USAGE ON SCHEMA public TO $ROLE; GRANT SELECT ON ALL TABLES IN SCHEMA public TO $ROLE;" || true
+                psql -h "$PGHOST" -U postgres -d "$db" -c "DO \$do\$ DECLARE o text; BEGIN SELECT rolname INTO o FROM pg_roles WHERE oid=(SELECT datdba FROM pg_database WHERE datname=current_database()); IF o IS NOT NULL THEN EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public GRANT SELECT ON TABLES TO $ROLE', o); END IF; END \$do\$;" || true
+              done
+              echo "Read-only role provisioned."
+{{- end }}

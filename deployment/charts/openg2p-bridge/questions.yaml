@@ -155,6 +155,21 @@ questions:
   label: SPAR Mapper API Base URL
   group: SPAR
 
+# ------------------------ Analytics / Dashboards --------------------
+- variable: supersetReadOnly.enabled
+  description: Create a read-only Postgres role + secret so the platform Superset can host the G2P Bridge dashboards. Leave off if you are not using Superset.
+  type: boolean
+  default: false
+  label: Enable Superset Read-Only Role
+  group: Analytics
+- variable: global.sparDB
+  description: SPAR mapper database name — used only to grant the analytics read-only role read access for the SPAR dashboard.
+  type: string
+  default: spar
+  label: SPAR Database Name
+  group: Analytics
+  show_if: supersetReadOnly.enabled=true
+
 # ------------------------- Bridge Database --------------------------
 - variable: global.postgresqlHost
   description: PostgreSQL host shared by the Bridge databases
