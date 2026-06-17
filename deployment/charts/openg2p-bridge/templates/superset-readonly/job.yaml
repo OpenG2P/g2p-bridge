@@ -49,8 +49,20 @@ spec:
                 if ! psql -h "$PGHOST" -U postgres -d postgres -c "GRANT CONNECT ON DATABASE \"$db\" TO $ROLE;"; then
                   echo "  (skipping $db — not present)"; continue
                 fi
+                # Wait for the app to migrate (tables to exist) so the grants below
+                # actually cover them — the app creates its schema on startup, which
+                # can be after this hook runs on a fresh install.
+                for i in $(seq 1 24); do
+                  n=$(psql -h "$PGHOST" -U postgres -d "$db" -tAc "SELECT count(*) FROM information_schema.tables WHERE table_schema='public'" 2>/dev/null || echo 0)
+                  [ "${n:-0}" -gt 0 ] && break
+                  echo "  waiting for $db tables ($i/24) ..."; sleep 5
+                done
                 psql -h "$PGHOST" -U postgres -d "$db" -c "GRANT USAGE ON SCHEMA public TO $ROLE; GRANT SELECT ON ALL TABLES IN SCHEMA public TO $ROLE;" || true
-                psql -h "$PGHOST" -U postgres -d "$db" -c "DO \$do\$ DECLARE o text; BEGIN SELECT rolname INTO o FROM pg_roles WHERE oid=(SELECT datdba FROM pg_database WHERE datname=current_database()); IF o IS NOT NULL THEN EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public GRANT SELECT ON TABLES TO $ROLE', o); END IF; END \$do\$;" || true
+                # Future tables: set default privileges for EVERY role that owns
+                # tables in public, plus the DB owner. On external Postgres the app
+                # user that creates the tables is often NOT the database owner, so
+                # granting only for the owner would miss them.
+                psql -h "$PGHOST" -U postgres -d "$db" -c "DO \$do\$ DECLARE r text; BEGIN FOR r IN SELECT tableowner FROM pg_tables WHERE schemaname='public' UNION SELECT rolname FROM pg_roles WHERE oid=(SELECT datdba FROM pg_database WHERE datname=current_database()) LOOP EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public GRANT SELECT ON TABLES TO $ROLE', r); END LOOP; END \$do\$;" || true
               done
               echo "Read-only role provisioned."
 {{- end }}

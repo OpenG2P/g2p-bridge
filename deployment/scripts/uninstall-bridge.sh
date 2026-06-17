@@ -39,6 +39,10 @@
 #       [--postgres-namespace <ns>]   (default: same as --namespace)
 #       [--keep-example-bank-db]      (do NOT drop example_bank_db / bankuser)
 #       [--keep-pvs]                  (delete PVCs but not PVs)
+#       [--drop-superset-ro]          (also drop the superset_ro analytics role +
+#                                      its secret; otherwise left for reinstall.
+#                                      NOTE: remove the dashboards from Superset
+#                                      separately via remove_dashboards.py.)
 #       [--dry-run]                   (print actions, change nothing)
 #       [--yes]                       (skip interactive confirmation)
 #
@@ -65,6 +69,7 @@ POSTGRES_RELEASE="commons-postgresql"
 POSTGRES_NAMESPACE=""
 KEEP_EXAMPLE_BANK_DB=false
 KEEP_PVS=false
+DROP_SUPERSET_RO=false
 DRY_RUN=false
 ASSUME_YES=false
 
@@ -79,6 +84,7 @@ while [[ $# -gt 0 ]]; do
     --postgres-namespace) POSTGRES_NAMESPACE="$2"; shift 2 ;;
     --keep-example-bank-db) KEEP_EXAMPLE_BANK_DB=true; shift ;;
     --keep-pvs)           KEEP_PVS=true;           shift ;;
+    --drop-superset-ro)   DROP_SUPERSET_RO=true;   shift ;;
     --dry-run)            DRY_RUN=true;            shift ;;
     --yes|-y)             ASSUME_YES=true;         shift ;;
     -h|--help)            usage ;;
@@ -324,6 +330,22 @@ if [[ "$PG_POD_FOUND" == true ]]; then
     kexec_psql "DROP OWNED BY \\\"$role\\\";"
     kexec_psql "DROP ROLE IF EXISTS \\\"$role\\\";"
   done
+
+  if [[ "$DROP_SUPERSET_RO" == true ]]; then
+    echo "  - Read-only analytics role: superset_ro (+ secret)"
+    # Its grants in the bridge / example_bank DBs went away when those DBs were
+    # dropped above; clean any remaining grants in spar (not dropped here), then
+    # drop the role. Tolerant — a lingering dependency just leaves the role.
+    if [[ "$DRY_RUN" == false ]]; then
+      kubectl exec -n "$POSTGRES_NAMESPACE" "$PG_POD" -c postgresql -- \
+        bash -c "PGPASSWORD=\"\$POSTGRES_PASSWORD\" psql -U postgres -d spar -v ON_ERROR_STOP=0 -c 'DROP OWNED BY superset_ro;'" 2>/dev/null \
+        || _yellow "  (could not clean superset_ro grants in spar — continuing)"
+    fi
+    kexec_psql "DROP OWNED BY superset_ro;"
+    kexec_psql "DROP ROLE IF EXISTS superset_ro;"
+    run "kubectl -n '$NAMESPACE' delete secret '${RELEASE}-superset-ro' --ignore-not-found"
+    _yellow "  Reminder: remove the dashboards from Superset too (remove_dashboards.py)."
+  fi
 else
   echo "  (skipped — commons-postgresql pod not reachable; if Postgres is already gone, DBs are gone too)"
 fi
