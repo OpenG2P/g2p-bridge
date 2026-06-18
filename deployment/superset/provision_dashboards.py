@@ -17,6 +17,12 @@ from superset.app import create_app
 # Read-only role password — from the <release>-superset-ro Secret (see module docstring).
 RO_PASS = os.environ.get("RO_PASS", "CHANGE_ME")
 PG_HOST = os.environ.get("PG_HOST", "commons-postgresql")
+# Database names. The bridge DB defaults to "g2p_bridge" but is derived from the
+# Helm release name (dashes->underscores), so set BRIDGE_DB for a renamed release
+# (e.g. release "openg2p-bridge" -> BRIDGE_DB=openg2p_bridge).
+BRIDGE_DB = os.environ.get("BRIDGE_DB", "g2p_bridge")
+SPAR_DB = os.environ.get("SPAR_DB", "spar")
+EXAMPLE_BANK_DB = os.environ.get("EXAMPLE_BANK_DB", "example_bank_db")
 
 
 def uri(dbname):
@@ -139,9 +145,9 @@ with app.app_context():
         print("dashboard:", d.id, slug, "charts:", len(all_slices))
 
     # ---------------- databases ----------------
-    bridge = get_db("g2p_bridge", "g2p_bridge")
-    spar = get_db("spar", "spar")
-    eb = get_db("example_bank", "example_bank_db")
+    bridge = get_db("g2p_bridge", BRIDGE_DB)
+    spar = get_db("spar", SPAR_DB)
+    eb = get_db("example_bank", EXAMPLE_BANK_DB)
 
     # ---------------- datasets ----------------
     ENRICHED_SQL = """
