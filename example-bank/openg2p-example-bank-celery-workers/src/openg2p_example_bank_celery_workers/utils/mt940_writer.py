@@ -36,6 +36,11 @@ class Mt940Writer(BaseService):
         return transaction
 
     def format_transaction(self, transaction):
+        # The MT940 :61: customer-reference subfield is limited to 16 chars; a
+        # longer value produces an unparseable statement. Cap it here so the
+        # statement is always valid. The full disbursement reference is carried
+        # in the :86: field (see the bank connector), so nothing is lost.
+        customer_reference = str(transaction["customer_reference"])[:16]
         return "{value_date}{entry_date}{dr_cr}{funds_code}{transaction_amount}{transaction_type}{customer_reference}{bank_reference}{supplementary_details}".format(
             value_date=transaction["value_date"].strftime("%y%m%d"),
             entry_date=transaction["entry_date"].strftime("%m%d"),
@@ -45,7 +50,7 @@ class Mt940Writer(BaseService):
                 transaction["transaction_amount"]
             ).replace(".", ","),
             transaction_type=transaction["transaction_type"].value,
-            customer_reference=transaction["customer_reference"],
+            customer_reference=customer_reference,
             bank_reference=transaction["bank_reference"],
             supplementary_details=transaction["supplementary_details"],
         )

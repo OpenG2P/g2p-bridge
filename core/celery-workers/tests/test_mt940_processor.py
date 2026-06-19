@@ -280,16 +280,15 @@ def test_construct_parsed_transaction(mock_session_maker, mock_bank_connector_fa
         "date": datetime.now(),
     }
 
-    mock_bank_connector_factory.retrieve_disbursement_id.return_value = "test_disbursement_id"
+    mock_bank_connector_factory.retrieve_reconciliation_id.return_value = "test_disbursement_id"
     mock_bank_connector_factory.retrieve_beneficiary_name.return_value = "Test Beneficiary"
 
     result = construct_parsed_transaction(
         mock_bank_connector_factory, "D", 1, mock_transaction, mock_session_maker
     )
     # Ensure result contains all expected keys
-    assert "disbursement_id" in result
-    assert result["disbursement_id"] == "test_disbursement_id"
-    assert result["disbursement_envelope_id"] == "test_envelope_id"
+    assert "reconciliation_id" in result
+    assert result["reconciliation_id"] == "test_disbursement_id"
     assert result["transaction_amount"] == 100
     assert result["debit_credit_indicator"] == "D"
     assert result["beneficiary_name_from_bank"] == "Test Beneficiary"
@@ -332,8 +331,9 @@ def test_process_debit_transactions_success(mock_session_maker, mock_bank_connec
 
 
 def test_process_debit_transactions_invalid_disbursement(mock_session_maker, mock_bank_connector_factory):
-    # Set disbursement_batch_control to None for this test
-    mock_session_maker.disbursement_batch_control = None
+    # Neither a Disbursement nor a DisbursementBatchControlGeo matches the
+    # reconciliation_id, so the production code records an INVALID_RECONCILIATION_ID error.
+    mock_session_maker.disbursement = None
 
     account_statement = AccountStatement(
         statement_id="test_statement_id", statement_number="123", sequence_number="1"
@@ -368,7 +368,7 @@ def test_process_debit_transactions_invalid_disbursement(mock_session_maker, moc
 
     assert len(disbursement_recons_d) == 0
     assert len(disbursement_error_recons) == 1
-    assert disbursement_error_recons[0].error_reason == G2PBridgeErrorCodes.INVALID_DISBURSEMENT_ID
+    assert disbursement_error_recons[0].error_reason == G2PBridgeErrorCodes.INVALID_RECONCILIATION_ID.value
 
 
 def test_process_debit_transactions_duplicate(mock_session_maker):
@@ -415,7 +415,7 @@ def test_process_debit_transactions_duplicate(mock_session_maker):
 
     assert len(disbursement_recons_d) == 0
     assert len(disbursement_error_recons) == 1
-    assert disbursement_error_recons[0].error_reason == G2PBridgeErrorCodes.DUPLICATE_DISBURSEMENT
+    assert disbursement_error_recons[0].error_reason == G2PBridgeErrorCodes.DUPLICATE_DISBURSEMENT.value
 
 
 def test_process_reversal_of_debits_success(mock_session_maker):

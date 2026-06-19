@@ -136,13 +136,25 @@ class MockSession:
         return self
 
     def update(self, *args, **kwargs):
-        # Always append a dict to self.updates for both success and error paths
+        # Always append a dict to self.updates for both success and error paths.
+        # Production keys the update dict by InstrumentedAttribute column objects, so
+        # normalise the keys to their plain column names for easy assertions.
+        def _normalize(d):
+            normalized = {}
+            for key, value in d.items():
+                key_name = getattr(key, "key", key)
+                normalized[key_name] = value
+            return normalized
+
         for arg in args:
             if isinstance(arg, dict):
-                self.updates.append(arg)
+                self.updates.append(_normalize(arg))
         if kwargs:
-            self.updates.append(kwargs)
+            self.updates.append(_normalize(kwargs))
         return True
+
+    def add(self, item):
+        self.added = item
 
     def add_all(self, items):
         self.details_list.extend(items)
@@ -199,33 +211,27 @@ def mock_resolve_helper():
 
 @pytest.fixture
 def mock_resolve_client():
-    mock_mapper_resolve_client = AsyncMock()
+    # The current code resolves through MapperFactory.get_component().get_mapper(),
+    # whose .resolve(...) coroutine returns the ResolveResponse.
+    mock_mapper = MagicMock()
+    mock_mapper.resolve = AsyncMock()
+
+    mock_factory = MagicMock()
+    mock_factory.get_mapper.return_value = mock_mapper
 
     with patch(
-        "openg2p_g2p_bridge_celery_workers.tasks.mapper_resolution_task.MapperResolveClient",
-        return_value=mock_mapper_resolve_client,
+        "openg2p_g2p_bridge_celery_workers.tasks.mapper_resolution_task.MapperFactory.get_component",
+        return_value=mock_factory,
     ):
-        yield mock_mapper_resolve_client
+        yield mock_mapper.resolve
 
 
 def test_mapper_resolution_worker_success(mock_session_maker, mock_resolve_helper, mock_resolve_client):
-    mock_response = MagicMock()
-    mock_response.response_body.resolve_response = [
-        MagicMock(
-            id="test_beneficiary_id",
-            fa="test_fa",
-            account_provider_info=MagicMock(name="TEST_NAME"),
-        )
-    ]
-    mock_resolve_client.resolve_request.return_value = mock_response
-    mock_resolve_helper.deconstruct_fa.return_value = {
-        "mapper_resolved_fa_type": "BANK",
-        "bank_account_number": "123",
-        "bank_code": "ABC",
-        "branch_code": "001",
-    }
-
-    mock_resolve_helper.create_jwt_token.return_value = "mocked_jwt_token"
+    # ResolveResponse exposes .results; each result carries .id, .fa and .name.
+    single_result = MagicMock(id="test_beneficiary_id", fa={"account_number": "123"})
+    single_result.name = "TEST_NAME"
+    mock_response = MagicMock(results=[single_result])
+    mock_resolve_client.return_value = mock_response
 
     # Only pass the batch control ID (session is handled by patching sessionmaker)
     mapper_resolution_worker("test_batch_control_id")
@@ -236,7 +242,7 @@ def test_mapper_resolution_worker_success(mock_session_maker, mock_resolve_helpe
         None,
     )
     assert update_values is not None
-    assert update_values["fa_resolution_status"] == ProcessStatus.PROCESSED
+    assert update_values["fa_resolution_status"] == ProcessStatus.PROCESSED.value
     assert isinstance(update_values["fa_resolution_timestamp"], datetime)
     assert update_values["fa_resolution_latest_error_code"] is None
 
@@ -245,19 +251,17 @@ def test_mapper_resolution_worker_success(mock_session_maker, mock_resolve_helpe
 
 
 def test_mapper_resolution_worker_failure(mock_session_maker, mock_resolve_helper, mock_resolve_client):
-    mock_resolve_client.resolve_request.side_effect = Exception("TEST_ERROR")
-
-    mock_resolve_helper.create_jwt_token.return_value = "mocked_jwt_token"
+    # The except path records the error directly on the batch control object (not via
+    # a query().update()) and, while attempts stay below the max, leaves status PENDING.
+    mock_session_maker.disbursement_batch_controls[0].fa_resolution_attempts = 0
+    mock_resolve_client.side_effect = Exception("TEST_ERROR")
 
     mapper_resolution_worker("test_batch_id")
 
-    update_values = next(
-        (item for item in mock_session_maker.updates if "fa_resolution_status" in item),
-        None,
-    )
-    assert update_values is not None
-    assert update_values["fa_resolution_status"] == ProcessStatus.PENDING
-    assert "Failed to resolve the request: TEST_ERROR" in update_values["fa_resolution_latest_error_code"]
+    batch_control = mock_session_maker.disbursement_batch_controls[0]
+    assert batch_control.fa_resolution_status == ProcessStatus.PENDING.value
+    assert "TEST_ERROR" in batch_control.fa_resolution_latest_error_code
+    assert isinstance(batch_control.fa_resolution_timestamp, datetime)
 
     assert mock_session_maker.committed
 
@@ -277,7 +281,7 @@ async def test_make_resolve_request_success(mock_resolve_helper, mock_resolve_cl
         )
     ]
     mock_response = "RESOLVE_RESPONSE"
-    mock_resolve_client.resolve_request.return_value = mock_response
+    mock_resolve_client.return_value = mock_response
 
     response, error = await make_resolve_request(disbursements)
     assert response == mock_response
@@ -298,32 +302,24 @@ async def test_make_resolve_request_failure(mock_resolve_helper, mock_resolve_cl
             disbursement_batch_control_id="test_batch_control_id",
         )
     ]
-    mock_resolve_client.resolve_request.side_effect = Exception("TEST_ERROR")
-
-    mock_resolve_helper.create_jwt_token.return_value = "mocked_jwt_token"
+    # A falsy resolve response makes make_resolve_request report a failure.
+    mock_resolve_client.return_value = None
 
     response, error_msg = await make_resolve_request(disbursements)
     assert response is None
-    assert "TEST_ERROR" in error_msg
+    assert "Failed to resolve the request" in error_msg
 
 
 def test_process_and_store_resolution_success(mock_session_maker, mock_resolve_helper):
-    mock_response = MagicMock()
-    mock_response.response_body.resolve_response = [
-        MagicMock(
-            id="test_beneficiary_id",
-            fa="test_fa",
-            account_provider_info=MagicMock(name="Test Name"),
-        )
-    ]
+    # A resolved beneficiary (id present in the map and a non-empty fa) yields one
+    # DisbursementResolutionFinancialAddress row, and the batch is marked PROCESSED.
+    single_result = MagicMock(
+        id="test_beneficiary_id",
+        fa={"account_number": "123", "bank_code": "ABC", "branch_code": "001"},
+    )
+    single_result.name = "Test Name"
+    mock_response = MagicMock(results=[single_result])
     beneficiary_map = {"test_beneficiary_id": "test_disbursement_id"}
-
-    mock_resolve_helper.deconstruct_fa.return_value = {
-        "mapper_resolved_fa_type": "BANK",
-        "bank_account_number": "123",
-        "bank_code": "ABC",
-        "branch_code": "001",
-    }
 
     process_and_store_resolution("test_batch_control_id", mock_response, beneficiary_map, mock_session_maker)
 
@@ -333,7 +329,7 @@ def test_process_and_store_resolution_success(mock_session_maker, mock_resolve_h
         None,
     )
     assert update_values is not None
-    assert update_values["fa_resolution_status"] == ProcessStatus.PROCESSED
+    assert update_values["fa_resolution_status"] == ProcessStatus.PROCESSED.value
     assert isinstance(update_values["fa_resolution_timestamp"], datetime)
     assert update_values["fa_resolution_latest_error_code"] is None
     assert mock_session_maker.flushed
@@ -341,18 +337,22 @@ def test_process_and_store_resolution_success(mock_session_maker, mock_resolve_h
 
 
 def test_process_and_store_resolution_failure(mock_session_maker, mock_resolve_helper):
-    mock_response = MagicMock()
-    mock_response.response_body.resolve_response = [MagicMock(id="test_beneficiary_id", fa=None)]
+    # An unresolved beneficiary (fa is falsy) is now simply SKIPPED: no financial-address
+    # row is created, batch_has_error stays False, so the batch is still marked PROCESSED.
+    single_result = MagicMock(id="test_beneficiary_id", fa=None)
+    single_result.name = "Test Name"
+    mock_response = MagicMock(results=[single_result])
     beneficiary_map = {"test_beneficiary_id": "test_disbursement_id"}
 
     process_and_store_resolution("test_batch_control_id", mock_response, beneficiary_map, mock_session_maker)
 
+    assert len(mock_session_maker.details_list) == 0
     update_values = next(
         (item for item in mock_session_maker.updates if "fa_resolution_status" in item),
         None,
     )
     assert update_values is not None
-    assert update_values["fa_resolution_status"] == ProcessStatus.PENDING
-    assert update_values["fa_resolution_latest_error_code"] is not None
+    assert update_values["fa_resolution_status"] == ProcessStatus.PROCESSED.value
+    assert update_values["fa_resolution_latest_error_code"] is None
     assert mock_session_maker.flushed
     assert mock_session_maker.committed

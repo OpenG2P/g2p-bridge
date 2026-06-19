@@ -52,6 +52,9 @@ def disburse_funds_from_bank_worker(disbursement_batch_control_id: str):
             )
             .first()
         )
+        if not disbursement_batch_control:
+            _logger.error(f"No DisbursementBatchControl found for id {disbursement_batch_control_id}")
+            return
 
         disbursement_envelope = (
             session.query(DisbursementEnvelope)

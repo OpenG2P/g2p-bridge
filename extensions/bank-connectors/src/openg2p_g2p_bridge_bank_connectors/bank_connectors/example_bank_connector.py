@@ -158,7 +158,11 @@ class ExampleBankConnector(BankConnectorInterface):
                         narrative_2=disbursement_payment_payload.benefit_program_mnemonic,
                         narrative_3=disbursement_payment_payload.cycle_code_mnemonic,
                         narrative_4=disbursement_payment_payload.beneficiary_id,
-                        narrative_5="",
+                        # The full disbursement_id is carried in :86: (narrative_5)
+                        # because the MT940 :61: customer-reference field is capped
+                        # at 16 chars and disbursement ids can be longer. The bridge
+                        # reads it back from narratives[4] when reconciling.
+                        narrative_5=disbursement_payment_payload.disbursement_id,
                         narrative_6="",
                     )
                     bank_payment_payloads.append(bank_payment_payload.model_dump())
@@ -187,6 +191,13 @@ class ExampleBankConnector(BankConnectorInterface):
         _logger.info(
             f"Retrieving reconciliation id for bank_reference: {bank_reference}, customer_reference: {customer_reference}"
         )
+        # The disbursement_id is carried in the MT940 :86: field (narrative_5 ->
+        # narratives[4]) because the :61: customer-reference is limited to 16
+        # chars and disbursement ids can be longer. Fall back to the :61:
+        # customer reference for statements produced before this change (which
+        # only ever carried short ids there).
+        if narratives and len(narratives) > 4 and str(narratives[4]).strip():
+            return str(narratives[4]).strip()
         return customer_reference
 
     def retrieve_beneficiary_name(self, narratives: str) -> str:

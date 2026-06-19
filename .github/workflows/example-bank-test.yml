@@ -1,16 +1,11 @@
 name: Test and coverage (example bank)
 
 on:
-  # NOTE: temporarily disabled on the develop branch.
   pull_request:
-    branches-ignore:
-      - develop
     paths:
       - 'example-bank/**'
       - '.github/workflows/example-bank-test.yml'
   push:
-    branches-ignore:
-      - develop
     paths:
       - 'example-bank/**'
       - '.github/workflows/example-bank-test.yml'
@@ -56,10 +51,12 @@ jobs:
         run: |
           python -m pip install -r test-requirements.txt
           python -m pip install -e openg2p-example-bank-api
-#          TODO: add other packages here
+          python -m pip install -e openg2p-example-bank-celery-workers
+#          TODO: add the remaining packages here
       - name: Run test suite
         run: |
           pytest --cov-branch --cov-report=term-missing --cov=openg2p_example_bank_api --cov=tests openg2p-example-bank-api
+          pytest --cov-branch --cov-report=term-missing --cov=openg2p_example_bank_celery_workers --cov=tests openg2p-example-bank-celery-workers --cov-append
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
         with:

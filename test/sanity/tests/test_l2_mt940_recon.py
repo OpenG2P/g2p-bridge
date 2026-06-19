@@ -17,10 +17,11 @@ is a related code used elsewhere.)
 Two wire-format constraints were confirmed against a live deployment and drive
 the test design:
 
-* The MT940 tag-61 ``customer_reference`` field is limited to **16 characters**,
-  and the Example Bank connector uses it verbatim as the reconciliation id. So
-  the test uses a short (<=16 char) run-unique id — a full-length run id would be
-  silently truncated and never matched on read-back.
+* The reconciliation id (the disbursement id) travels in the MT940 ``:86:``
+  field (narrative #5); the Example Bank connector reads it from there because
+  the tag-61 ``customer_reference`` is capped at **16 characters**. This test
+  puts the id in *both* fields, so it matches on the older (tag-61) connector as
+  well as the current (:86:) one.
 * The statement must be drawn on the treasury account (tag ``:25:``) — the Bridge
   resolves the bank connector from that account number via the sponsor-bank
   config.
@@ -66,12 +67,14 @@ def _balance(amount, date, currency) -> str:
     )
 
 
-def _narratives(beneficiary: str) -> str:
-    # narrative_1..6; the Example Bank connector reads the beneficiary from #4.
-    return "\n".join(["N1", "N2", "N3", beneficiary, "N5", "N6"])
+def _narratives(beneficiary: str, recon_id: str) -> str:
+    # narrative_1..6; the Example Bank connector reads the beneficiary from #4
+    # and the reconciliation id (disbursement id) from #5 (:86:), because the
+    # :61: customer_reference is capped at 16 chars.
+    return "\n".join(["N1", "N2", "N3", beneficiary, recon_id, "N6"])
 
 
-def _debit(date, amount, customer_ref, bank_ref, beneficiary) -> str:
+def _debit(date, amount, customer_ref, bank_ref, beneficiary, recon_id) -> str:
     # :61: value_date(yymmdd) entry_date(mmdd) D funds_code('') amount NTRF
     #      customer_reference //bank_reference     (then :86: narratives)
     line61 = (
@@ -83,7 +86,7 @@ def _debit(date, amount, customer_ref, bank_ref, beneficiary) -> str:
         + customer_ref
         + f"//{bank_ref}"
     )
-    return f":61:{line61}\n:86:{_narratives(beneficiary)}"
+    return f":61:{line61}\n:86:{_narratives(beneficiary, recon_id)}"
 
 
 def _statement(account, statement_id, currency, date, txns) -> str:
@@ -119,8 +122,10 @@ def mt940_recon(config, bridge, run_ns):
     account = config.treasury_account_number
     today = datetime.date.today()
 
-    # tag-61 customer_reference is max 16 chars; keep it short but run-unique so
-    # we don't collide with error recons left by earlier runs.
+    # The id is matched from :86: now, but we mirror it in the tag-61
+    # customer_reference too (max 16 chars) so the test also passes against an
+    # older connector. Keep it short and run-unique to avoid colliding with
+    # error recons left by earlier runs.
     short = run_ns.run_token.split("_")[-1]
     unknown_id = f"TST{short}NORECON"[:16]
     statement = _statement(
@@ -128,7 +133,7 @@ def mt940_recon(config, bridge, run_ns):
         "STMT1",
         currency,
         today,
-        [_debit(today, 1000, unknown_id, "BR1", "BENE_1")],
+        [_debit(today, 1000, unknown_id, "BR1", "BENE_1", unknown_id)],
     )
 
     up_status, up_body = bridge.upload_mt940(statement.encode())

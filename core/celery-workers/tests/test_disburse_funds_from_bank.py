@@ -43,6 +43,8 @@ class MockSession:
             measurement_unit="KES",
             disbursement_schedule_date=datetime.now().date(),
         )
+        # Production branches on benefit_type == BenefitType.CASH_DIGITAL.value (a string).
+        self.disbursement_envelope.benefit_type = BenefitType.CASH_DIGITAL.value
         self.disbursement_envelope_batch_status = EnvelopeBatchStatusForCash(
             disbursement_envelope_id="test_envelope_id",
             funds_available_with_bank=FundsAvailableWithBankEnum.FUNDS_AVAILABLE,
@@ -82,6 +84,7 @@ class MockSession:
             geo_resolution_status=ProcessStatus.PROCESSED,
             warehouse_allocation_status=ProcessStatus.PROCESSED,
             agency_allocation_status=ProcessStatus.PROCESSED,
+            sponsor_bank_dispatch_attempts=0,
         )
         self.disbursement_resolution_financial_address = DisbursementResolutionFinancialAddress(
             disbursement_id="test_disbursement_id",
@@ -106,38 +109,29 @@ class MockSession:
         self.filter_args = args
         return self
 
+    def join(self, *args, **kwargs):
+        return self
+
+    def distinct(self, *args):
+        return self
+
     def one(self):
         return self.first()
 
     def first(self):
-        # Handle DisbursementBatchControl queries
+        # The worker issues distinct .first() queries per model, in order:
+        #   DisbursementBatchControl -> DisbursementEnvelope -> EnvelopeBatchStatusForCash
+        # plus DisbursementResolutionFinancialAddress while building payloads.
         if self.query_args[0] is DisbursementBatchControl:
-            # Check if the filter is for the test_batch_id
-            if (
-                hasattr(self, "filter_args")
-                and len(self.filter_args) > 0
-                and hasattr(self.filter_args[0], "right")
-                and getattr(self.filter_args[0].right, "value", None) == "test_batch_id"
-            ):
-                # Allow test to override for negative cases
-                if hasattr(self, "bank_disbursement_batch_status"):
-                    return self.bank_disbursement_batch_status
-                return self.disbursement_batch_status
-            else:
-                return None
-        if self.query_args[0] is DisbursementEnvelope:
+            return self.disbursement_batch_status
+        elif self.query_args[0] is DisbursementEnvelope:
             return self.disbursement_envelope
         elif self.query_args[0] is EnvelopeBatchStatusForCash:
-            if hasattr(self.filter_args[0], "right") and self.filter_args[0].right.value == "test_batch_id":
-                return self.bank_disbursement_batch_status
-            else:
-                return self.disbursement_envelope_batch_status
+            return self.disbursement_envelope_batch_status
         elif self.query_args[0] is SponsorBankConfiguration:
             return self.benefit_program_configuration
         elif self.query_args[0] is DisbursementResolutionFinancialAddress:
             return self.disbursement_resolution_financial_address
-        elif self.query_args[0] is Disbursement:
-            return [self.disbursement]
         return None
 
     def all(self):
@@ -146,6 +140,9 @@ class MockSession:
         elif self.query_args[0] is Disbursement:
             return [self.disbursement]
         return []
+
+    def add(self, obj):
+        pass
 
     def with_for_update(self, nowait=False):
         return self
@@ -245,8 +242,10 @@ def test_disburse_funds_failure(mock_session_maker, mock_bank_connector_factory)
         mock_session_maker.disbursement_batch_status.sponsor_bank_dispatch_status
         == ProcessStatus.PENDING.value
     )
+    # On a non-SUCCESS payment status, production raises ValueError("Payment failed ...")
+    # and stores the full str(e) as the dispatch error code.
     assert (
-        mock_session_maker.disbursement_batch_status.sponsor_bank_dispatch_latest_error_code == "TEST_ERROR"
+        "TEST_ERROR" in mock_session_maker.disbursement_batch_status.sponsor_bank_dispatch_latest_error_code
     )
     assert mock_session_maker.committed
 
@@ -274,7 +273,9 @@ def test_disburse_funds_exception(mock_session_maker, mock_bank_connector_factor
 
 
 def test_disburse_funds_batch_not_found(mock_session_maker):
-    mock_session_maker.bank_disbursement_batch_status = None
+    # No DisbursementBatchControl for the given id -> the worker logs and returns
+    # gracefully (like the envelope / batch-status not-found guards), no commit.
+    mock_session_maker.disbursement_batch_status = None
     with patch(
         "openg2p_g2p_bridge_celery_workers.helpers.warehouse_helper.WarehouseHelper.get_component",
         return_value=get_mock_warehouse_helper(),
