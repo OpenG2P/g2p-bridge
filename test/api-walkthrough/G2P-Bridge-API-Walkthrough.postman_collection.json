@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "G2P Bridge - API Walkthrough",
-    "description": "A guided, manual walkthrough of the G2P Bridge disbursement APIs (digital cash), for implementers who have installed G2P Bridge + SPAR + the Example Bank. Seed data comes from `beneficiaries.csv` (edit it; change the schedule date / amounts as you like). Auth is assumed disabled.\n\nRun the five folders in order. Folders 3 and 5 are DATA-DRIVEN: run them from the Collection Runner with `beneficiaries.csv` as the data file. Folder 4 is meant to be RE-RUN repeatedly while the asynchronous pipeline advances.\n\nFull instructions: GitBook -> Developer Zone -> API Walkthrough.",
+    "description": "A guided, manual walkthrough of the G2P Bridge disbursement APIs (digital cash), for implementers who have installed G2P Bridge + SPAR + the Example Bank. Seed data comes from `beneficiaries.csv` (edit it; change the schedule date / amounts as you like). Auth is assumed disabled.\n\nRun the six folders in order. Folders 3 and 6 are DATA-DRIVEN: run them from the Collection Runner with `beneficiaries.csv` as the data file. Folder 5 is meant to be RE-RUN repeatedly while the asynchronous pipeline advances.\n\nFull instructions: GitBook -> Developer Zone -> API Walkthrough.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -135,6 +135,12 @@
                   "pm.collectionVariables.set('run_id', run);",
                   "pm.collectionVariables.set('batch_control_id', run + '_BCTL');",
                   "pm.collectionVariables.set('created_disbursement_ids', '[]');",
+                  "pm.collectionVariables.set('disbursements_accum', '[]');",
+                  "// Short, MT940-safe token for disbursement ids. The Example Bank writes the",
+                  "// disbursement_id into the MT940 :61: reference (max 16 chars), so ids must be",
+                  "// short or reconciliation fails to parse. 'D' + 8 hex + 2-digit index <= 16.",
+                  "pm.collectionVariables.set('run_token',",
+                  "  (Date.now() % 0x100000000).toString(16).padStart(8, '0'));",
                   "// Default the schedule date to today if the implementer left it blank.",
                   "if (!pm.environment.get('schedule_date')) {",
                   "  pm.environment.set('schedule_date', new Date().toISOString().slice(0, 10));",
@@ -168,11 +174,11 @@
       ]
     },
     {
-      "name": "3 \u00b7 Seed SPAR + create disbursements",
-      "description": "DATA-DRIVEN. In the Collection Runner, select THIS folder, choose `beneficiaries.csv` as the data file, then Run. It iterates once per row: link the beneficiary in SPAR, then create one disbursement against the envelope from step 2.\n\nRows with scenario=missing_from_spar are left unmapped on purpose.",
+      "name": "3 \u00b7 Link beneficiaries in SPAR (build the batch)",
+      "description": "DATA-DRIVEN. In the Collection Runner, select THIS folder, choose `beneficiaries.csv` as the data file, then Run. It iterates once per row: link the beneficiary in SPAR (rows marked `missing_from_spar` are left unmapped on purpose) and adds that beneficiary's disbursement to the batch.\n\nIt does NOT create the disbursements yet \u2014 step 4 sends the whole batch in one call (the way a real integrator does).",
       "item": [
         {
-          "name": "SPAR \u2014 link beneficiary",
+          "name": "SPAR \u2014 link beneficiary (+ add to batch)",
           "request": {
             "method": "POST",
             "header": [
@@ -235,6 +241,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "// 1) Report the link outcome for this row.",
                   "const sc = (pm.iterationData.get('scenario') || 'happy');",
                   "const bid = pm.iterationData.get('beneficiary_id');",
                   "if (sc === 'missing_from_spar') {",
@@ -246,14 +253,43 @@
                   "  const st = j.response_header && j.response_header.response_status;",
                   "  pm.test('SPAR response_status SUCCESS', () => st === 'SUCCESS');",
                   "  console.log('linked ' + bid + ' @ ' + pm.iterationData.get('bank_code'));",
-                  "}"
+                  "}",
+                  "// 2) Accumulate THIS beneficiary's disbursement into the batch we will create",
+                  "//    in step 4 (one create_disbursements call for the whole batch \u2014 that is how",
+                  "//    the API is designed to be used). Done for EVERY row, including the unmapped",
+                  "//    ones (they are still part of the batch; FA resolution will just skip them).",
+                  "// Short id ('D' + 8-hex token + 2-digit row index) so it fits the MT940 :61:",
+                  "// reference field (max 16 chars) and reconciliation can parse it.",
+                  "const idx = String((pm.info.iteration || 0) + 1).padStart(2, '0');",
+                  "const disbId = 'D' + pm.variables.replaceIn('{{run_token}}') + idx;",
+                  "let arr = [], ids = [];",
+                  "try { arr = JSON.parse(pm.collectionVariables.get('disbursements_accum') || '[]'); } catch (e) {}",
+                  "try { ids = JSON.parse(pm.collectionVariables.get('created_disbursement_ids') || '[]'); } catch (e) {}",
+                  "arr.push({",
+                  "  disbursement_id: disbId,",
+                  "  disbursement_envelope_id: pm.collectionVariables.get('envelope_id'),",
+                  "  beneficiary_id: bid,",
+                  "  beneficiary_name: pm.iterationData.get('beneficiary_name'),",
+                  "  disbursement_quantity: Number(pm.iterationData.get('amount')),",
+                  "  disbursement_cycle_id: Number(pm.environment.get('cycle_id')),",
+                  "  narrative: 'Training disbursement for ' + disbId",
+                  "});",
+                  "ids.push(disbId);",
+                  "pm.collectionVariables.set('disbursements_accum', JSON.stringify(arr));",
+                  "pm.collectionVariables.set('created_disbursement_ids', JSON.stringify(ids));"
                 ]
               }
             }
           ]
-        },
+        }
+      ]
+    },
+    {
+      "name": "4 \u00b7 Create disbursements (one batch)",
+      "description": "Run ONCE, after step 3 (no data file). Sends every beneficiary's disbursement from step 3 in a SINGLE `create_disbursements` call, under one batch-control id. The Bridge creates one batch-control row per call, so the whole batch must go together (not one call per beneficiary).\n\nAfter this, the asynchronous pipeline starts \u2014 watch it in step 5.",
+      "item": [
         {
-          "name": "Bridge \u2014 create disbursement",
+          "name": "Create disbursements (whole batch)",
           "request": {
             "method": "POST",
             "header": [
@@ -267,7 +303,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n\n  \"request_header\": {\n    \"sender_app_mnemonic\": \"{{sender_app}}\",\n    \"sender_app_url\": \"{{sender_app_url}}\",\n    \"request_id\": \"{{$guid}}\",\n    \"request_timestamp\": \"{{$isoTimestamp}}\",\n    \"instance_id\": null\n  },\n  \"request_body\": {\n    \"pagination_request\": null,\n    \"disbursement_batch_control_id\": \"{{batch_control_id}}\",\n    \"request_payload\": [\n      {\n        \"disbursement_id\": \"{{disb_id}}\",\n        \"disbursement_envelope_id\": \"{{envelope_id}}\",\n        \"beneficiary_id\": \"{{bene_id}}\",\n        \"beneficiary_name\": \"{{beneficiary_name}}\",\n        \"disbursement_quantity\": {{amount}},\n        \"disbursement_cycle_id\": {{cycle_id}},\n        \"narrative\": \"Training disbursement for {{bene_id}}\"\n      }\n    ]\n  }\n}",
+              "raw": "{\n\n  \"request_header\": {\n    \"sender_app_mnemonic\": \"{{sender_app}}\",\n    \"sender_app_url\": \"{{sender_app_url}}\",\n    \"request_id\": \"{{$guid}}\",\n    \"request_timestamp\": \"{{$isoTimestamp}}\",\n    \"instance_id\": null\n  },\n  \"request_body\": {\n    \"pagination_request\": null,\n    \"disbursement_batch_control_id\": \"{{batch_control_id}}\",\n    \"request_payload\": {{disbursements_accum}}\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -277,31 +313,21 @@
           },
           "event": [
             {
-              "listen": "prerequest",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "const bid = pm.iterationData.get('beneficiary_id');",
-                  "pm.variables.set('bene_id', bid);",
-                  "pm.variables.set('disb_id', pm.variables.replaceIn('{{run_id}}') + '_DISB_' + bid);"
-                ]
-              }
-            },
-            {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('Disbursement accepted (HTTP 200)', () => pm.response.code === 200);",
+                  "pm.test('Batch accepted (HTTP 200)', () => pm.response.code === 200);",
                   "const j = pm.response.json() || {};",
                   "const st = j.response_header && j.response_header.response_status;",
                   "pm.test('response_status SUCCESS', () => st === 'SUCCESS');",
-                  "let ids = [];",
-                  "try { ids = JSON.parse(pm.collectionVariables.get('created_disbursement_ids') || '[]'); } catch (e) {}",
-                  "ids.push(pm.variables.get('disb_id'));",
-                  "pm.collectionVariables.set('created_disbursement_ids', JSON.stringify(ids));",
-                  "console.log('created ' + pm.variables.get('disb_id') +",
-                  "            ' [scenario=' + (pm.iterationData.get('scenario') || 'happy') + ']');"
+                  "let n = 0;",
+                  "try { n = JSON.parse(pm.collectionVariables.get('disbursements_accum') || '[]').length; } catch (e) {}",
+                  "console.log('created ' + n + ' disbursements in ONE batch | batch_control_id = ' +",
+                  "            pm.collectionVariables.get('batch_control_id'));",
+                  "if (st !== 'SUCCESS') {",
+                  "  console.log('Response: ' + JSON.stringify(j).slice(0, 300));",
+                  "}"
                 ]
               }
             }
@@ -310,8 +336,8 @@
       ]
     },
     {
-      "name": "4 \u00b7 Observe the pipeline (re-run me)",
-      "description": "Run these manually AFTER step 3, and RE-RUN them every ~15-30 seconds. The disbursement pipeline is asynchronous (background workers), so the statuses advance over time. Watch the order:\n\n  FA resolution -> funds available -> funds blocked -> sponsor dispatch -> beneficiaries credited -> reconciled.\n\nExpect 20 reconciled (happy), 2 not credited to their own account (bad_account / foreign bank), 3 never disbursed (missing_from_spar).",
+      "name": "5 \u00b7 Observe the pipeline (re-run me)",
+      "description": "Run these manually AFTER step 4, and RE-RUN them every ~15-30 seconds. The disbursement pipeline is asynchronous (background workers), so the statuses advance over time. Watch the order:\n\n  FA resolution -> funds available -> funds blocked -> sponsor dispatch -> beneficiaries credited -> reconciled.\n\nExpect ~20 reconciled OK (happy), up to 2 reconciled ERROR / not credited to their own account (bad_account / foreign bank), 3 never disbursed (missing_from_spar).",
       "item": [
         {
           "name": "Batch control status (FA + dispatch)",
@@ -328,7 +354,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n\n  \"request_header\": {\n    \"sender_app_mnemonic\": \"{{sender_app}}\",\n    \"sender_app_url\": \"{{sender_app_url}}\",\n    \"request_id\": \"{{$guid}}\",\n    \"request_timestamp\": \"{{$isoTimestamp}}\",\n    \"instance_id\": null\n  },\n  \"request_body\": {\n    \"pagination_request\": null,\n    \"request_payload\": \"{{envelope_id}}\"\n  }\n}",
+              "raw": "{\n\n  \"request_header\": {\n    \"sender_app_mnemonic\": \"{{sender_app}}\",\n    \"sender_app_url\": \"{{sender_app_url}}\",\n    \"request_id\": \"{{$guid}}\",\n    \"request_timestamp\": \"{{$isoTimestamp}}\",\n    \"instance_id\": null\n  },\n  \"request_body\": {\n    \"pagination_request\": null,\n    \"request_payload\": \"{{batch_control_id}}\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -430,15 +456,20 @@
                   "const j = pm.response.json() || {};",
                   "const p = j.response_body && j.response_body.response_payload;",
                   "if (Array.isArray(p)) {",
-                  "  let reconciled = 0, pending = 0;",
+                  "  // disbursement_recon_records is ALWAYS an object with two arrays; a",
+                  "  // disbursement is reconciled when one of them is non-empty.",
+                  "  let ok = 0, err = 0, none = 0;",
                   "  p.forEach(d => {",
-                  "    const recs = d.disbursement_recon_records;",
-                  "    (recs && recs.length) ? reconciled++ : pending++;",
+                  "    const r = d.disbursement_recon_records || {};",
+                  "    const a = (r.disbursement_recon_payloads || []).length;",
+                  "    const e = (r.disbursement_error_recon_payloads || []).length;",
+                  "    if (a) ok++; else if (e) err++; else none++;",
                   "  });",
-                  "  console.log('Disbursements: ' + p.length + ' total | reconciled: ' +",
-                  "              reconciled + ' | not-yet / skipped: ' + pending);",
-                  "  console.log('(Re-run me every ~15-30s; reconciled climbs as the async ' +",
-                  "              'pipeline advances. missing_from_spar rows never reconcile.)');",
+                  "  console.log('Disbursements: ' + p.length + ' | reconciled OK: ' + ok +",
+                  "              ' | reconciled ERROR (reversals): ' + err +",
+                  "              ' | no recon yet / never: ' + none);",
+                  "  console.log('(Re-run every ~15-30s as the async pipeline advances. End state: ' +",
+                  "              '~20 OK, up to 2 ERROR (bad_account), 3 with no recon (missing_from_spar).)');",
                   "}"
                 ]
               }
@@ -526,7 +557,7 @@
       ]
     },
     {
-      "name": "5 \u00b7 Cleanup \u2014 unlink SPAR",
+      "name": "6 \u00b7 Cleanup \u2014 unlink SPAR",
       "description": "DATA-DRIVEN. Select this folder + `beneficiaries.csv` and Run to remove the ID->FA links created in step 3. Disbursement data in the Bridge is left in place (it is namespaced by run_id and visible in the dashboards). Re-running the whole walkthrough creates a fresh run_id.",
       "item": [
         {
@@ -575,6 +606,10 @@
       "value": ""
     },
     {
+      "key": "run_token",
+      "value": ""
+    },
+    {
       "key": "batch_control_id",
       "value": ""
     },
@@ -584,6 +619,10 @@
     },
     {
       "key": "created_disbursement_ids",
+      "value": "[]"
+    },
+    {
+      "key": "disbursements_accum",
       "value": "[]"
     }
   ]
