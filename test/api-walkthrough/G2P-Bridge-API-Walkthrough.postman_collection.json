@@ -1,0 +1,590 @@
+{
+  "info": {
+    "name": "G2P Bridge - API Walkthrough",
+    "description": "A guided, manual walkthrough of the G2P Bridge disbursement APIs (digital cash), for implementers who have installed G2P Bridge + SPAR + the Example Bank. Seed data comes from `beneficiaries.csv` (edit it; change the schedule date / amounts as you like). Auth is assumed disabled.\n\nRun the five folders in order. Folders 3 and 5 are DATA-DRIVEN: run them from the Collection Runner with `beneficiaries.csv` as the data file. Folder 4 is meant to be RE-RUN repeatedly while the asynchronous pipeline advances.\n\nFull instructions: GitBook -> Developer Zone -> API Walkthrough.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1 \u00b7 Health checks",
+      "description": "Confirm the three services are reachable and the treasury (sponsor) account is funded. Run this once, first.\n\nUpdate the three base URLs in the environment to match YOUR namespace before running.",
+      "item": [
+        {
+          "name": "Bridge \u2014 ping",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{bridge_base_url}}/ping"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Bridge reachable (HTTP 200)', () => pm.response.code === 200);",
+                  "console.log('Bridge ping: ' + pm.response.code);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Example Bank \u2014 ping",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{example_bank_base_url}}/ping"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Example Bank reachable (HTTP 200)', () => pm.response.code === 200);",
+                  "console.log('Example Bank ping: ' + pm.response.code);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Example Bank \u2014 treasury is funded",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{example_bank_base_url}}/check_funds"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"account_number\": \"{{treasury_account}}\",\n  \"account_currency\": \"{{currency}}\",\n  \"total_funds_needed\": {{total_amount}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "The sponsor/treasury account must hold at least total_amount or the funds-check stage will never pass."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('check_funds returned 200', () => pm.response.code === 200);",
+                  "const j = pm.response.json() || {};",
+                  "pm.test('Treasury has enough for the whole batch', () => j.has_sufficient_funds === true);",
+                  "console.log('Treasury ' + pm.environment.get('treasury_account') +",
+                  "            ' sufficient for ' + pm.environment.get('total_amount') +",
+                  "            '? -> ' + j.has_sufficient_funds);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2 \u00b7 Create disbursement envelope",
+      "description": "Creates ONE CASH_DIGITAL envelope. Run once (do not use a data file).\n\nIMPORTANT: `num_disbursements` and `total_amount` in the environment must match your CSV exactly \u2014 the row count, and the sum of the `amount` column. The pipeline only advances once it has received exactly that many disbursements for exactly that total. The shipped CSV is 25 rows x 1000 = 25000.",
+      "item": [
+        {
+          "name": "Create envelope (CASH_DIGITAL)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{bridge_base_url}}/create_disbursement_envelopes"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n\n  \"request_header\": {\n    \"sender_app_mnemonic\": \"{{sender_app}}\",\n    \"sender_app_url\": \"{{sender_app_url}}\",\n    \"request_id\": \"{{$guid}}\",\n    \"request_timestamp\": \"{{$isoTimestamp}}\",\n    \"instance_id\": null\n  },\n  \"request_body\": {\n    \"pagination_request\": null,\n    \"request_payload\": [\n      {\n        \"benefit_program_id\": {{program_id}},\n        \"benefit_program_mnemonic\": \"{{program_mnemonic}}\",\n        \"benefit_program_description\": \"API walkthrough training program\",\n        \"target_registry\": \"{{target_registry}}\",\n        \"benefit_code_id\": {{benefit_code_id}},\n        \"benefit_code_mnemonic\": \"{{benefit_code_mnemonic}}\",\n        \"benefit_code_description\": \"Digital cash training\",\n        \"benefit_type\": \"CASH_DIGITAL\",\n        \"disbursement_cycle_id\": {{cycle_id}},\n        \"disbursement_frequency\": \"{{frequency}}\",\n        \"cycle_code_mnemonic\": \"{{program_mnemonic}}_CYCLE\",\n        \"number_of_beneficiaries\": {{num_disbursements}},\n        \"number_of_disbursements\": {{num_disbursements}},\n        \"total_disbursement_quantity\": {{total_amount}},\n        \"measurement_unit\": \"{{currency}}\",\n        \"disbursement_schedule_date\": \"{{schedule_date}}\"\n      }\n    ]\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Start a fresh campaign: new run id, batch-control id, empty id list.",
+                  "const stamp = new Date().toISOString().replace(/[^0-9]/g, '').slice(0, 14);",
+                  "const run = (pm.environment.get('run_prefix') || 'TRAINING') + '_' + stamp;",
+                  "pm.collectionVariables.set('run_id', run);",
+                  "pm.collectionVariables.set('batch_control_id', run + '_BCTL');",
+                  "pm.collectionVariables.set('created_disbursement_ids', '[]');",
+                  "// Default the schedule date to today if the implementer left it blank.",
+                  "if (!pm.environment.get('schedule_date')) {",
+                  "  pm.environment.set('schedule_date', new Date().toISOString().slice(0, 10));",
+                  "}",
+                  "console.log('Campaign run_id = ' + run + ' | schedule_date = ' +",
+                  "            pm.environment.get('schedule_date'));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Envelope accepted (HTTP 200)', () => pm.response.code === 200);",
+                  "const j = pm.response.json() || {};",
+                  "const st = j.response_header && j.response_header.response_status;",
+                  "pm.test('response_status SUCCESS', () => st === 'SUCCESS');",
+                  "const p = j.response_body && j.response_body.response_payload;",
+                  "const eid = Array.isArray(p) && p.length ? p[0].id : null;",
+                  "pm.test('envelope id returned', () => !!eid);",
+                  "pm.collectionVariables.set('envelope_id', eid || '');",
+                  "console.log('envelope_id = ' + eid + '  | declared ' +",
+                  "            pm.environment.get('num_disbursements') + ' disbursements, total ' +",
+                  "            pm.environment.get('total_amount'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "3 \u00b7 Seed SPAR + create disbursements",
+      "description": "DATA-DRIVEN. In the Collection Runner, select THIS folder, choose `beneficiaries.csv` as the data file, then Run. It iterates once per row: link the beneficiary in SPAR, then create one disbursement against the envelope from step 2.\n\nRows with scenario=missing_from_spar are left unmapped on purpose.",
+      "item": [
+        {
+          "name": "SPAR \u2014 link beneficiary",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{spar_base_url}}/link"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n\n  \"request_header\": {\n    \"sender_app_mnemonic\": \"{{sender_app}}\",\n    \"sender_app_url\": \"{{sender_app_url}}\",\n    \"request_id\": \"{{$guid}}\",\n    \"request_timestamp\": \"{{$isoTimestamp}}\",\n    \"instance_id\": null\n  },\n  \"request_body\": {\n    \"pagination_request\": null,\n    \"request_payload\": {\n      \"transaction_id\": \"{{run_id}}_LNK_{{beneficiary_id}}\",\n      \"link_request\": {{link_request_json}}\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Build the SPAR link_request from the current CSV row. For the",
+                  "// 'missing_from_spar' scenario we send an EMPTY array, so the beneficiary is",
+                  "// deliberately left unmapped (this is the 'ID missing from SPAR' case).",
+                  "const sc = (pm.iterationData.get('scenario') || 'happy');",
+                  "const bid = pm.iterationData.get('beneficiary_id');",
+                  "const sid = Number(pm.environment.get('spar_strategy_id'));",
+                  "let arr = [];",
+                  "if (sc !== 'missing_from_spar') {",
+                  "  arr = [{",
+                  "    reference_id: pm.variables.replaceIn('{{run_id}}') + '_REF_' + bid,",
+                  "    timestamp: new Date().toISOString(),",
+                  "    id: bid,",
+                  "    fa: {",
+                  "      strategy_id: sid,",
+                  "      fa_type: 'BANK',",
+                  "      bank_name: (pm.iterationData.get('bank_code') || '') + ' Bank',",
+                  "      bank_code: pm.iterationData.get('bank_code'),",
+                  "      branch_name: 'Branch ' + (pm.iterationData.get('branch_code') || ''),",
+                  "      branch_code: pm.iterationData.get('branch_code'),",
+                  "      account_number: pm.iterationData.get('account_number')",
+                  "    },",
+                  "    name: pm.iterationData.get('beneficiary_name'),",
+                  "    additional_info: [{ strategy_id: sid }],",
+                  "    locale: 'en'",
+                  "  }];",
+                  "}",
+                  "pm.variables.set('link_request_json', JSON.stringify(arr));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const sc = (pm.iterationData.get('scenario') || 'happy');",
+                  "const bid = pm.iterationData.get('beneficiary_id');",
+                  "if (sc === 'missing_from_spar') {",
+                  "  console.log('-> ' + bid + ': intentionally NOT linked (simulating beneficiary missing from SPAR)');",
+                  "  pm.test(bid + ' left unmapped (missing_from_spar)', () => true);",
+                  "} else {",
+                  "  pm.test('SPAR link accepted (HTTP 200)', () => pm.response.code === 200);",
+                  "  const j = pm.response.json() || {};",
+                  "  const st = j.response_header && j.response_header.response_status;",
+                  "  pm.test('SPAR response_status SUCCESS', () => st === 'SUCCESS');",
+                  "  console.log('linked ' + bid + ' @ ' + pm.iterationData.get('bank_code'));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Bridge \u2014 create disbursement",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{bridge_base_url}}/create_disbursements"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n\n  \"request_header\": {\n    \"sender_app_mnemonic\": \"{{sender_app}}\",\n    \"sender_app_url\": \"{{sender_app_url}}\",\n    \"request_id\": \"{{$guid}}\",\n    \"request_timestamp\": \"{{$isoTimestamp}}\",\n    \"instance_id\": null\n  },\n  \"request_body\": {\n    \"pagination_request\": null,\n    \"disbursement_batch_control_id\": \"{{batch_control_id}}\",\n    \"request_payload\": [\n      {\n        \"disbursement_id\": \"{{disb_id}}\",\n        \"disbursement_envelope_id\": \"{{envelope_id}}\",\n        \"beneficiary_id\": \"{{bene_id}}\",\n        \"beneficiary_name\": \"{{beneficiary_name}}\",\n        \"disbursement_quantity\": {{amount}},\n        \"disbursement_cycle_id\": {{cycle_id}},\n        \"narrative\": \"Training disbursement for {{bene_id}}\"\n      }\n    ]\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const bid = pm.iterationData.get('beneficiary_id');",
+                  "pm.variables.set('bene_id', bid);",
+                  "pm.variables.set('disb_id', pm.variables.replaceIn('{{run_id}}') + '_DISB_' + bid);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Disbursement accepted (HTTP 200)', () => pm.response.code === 200);",
+                  "const j = pm.response.json() || {};",
+                  "const st = j.response_header && j.response_header.response_status;",
+                  "pm.test('response_status SUCCESS', () => st === 'SUCCESS');",
+                  "let ids = [];",
+                  "try { ids = JSON.parse(pm.collectionVariables.get('created_disbursement_ids') || '[]'); } catch (e) {}",
+                  "ids.push(pm.variables.get('disb_id'));",
+                  "pm.collectionVariables.set('created_disbursement_ids', JSON.stringify(ids));",
+                  "console.log('created ' + pm.variables.get('disb_id') +",
+                  "            ' [scenario=' + (pm.iterationData.get('scenario') || 'happy') + ']');"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "4 \u00b7 Observe the pipeline (re-run me)",
+      "description": "Run these manually AFTER step 3, and RE-RUN them every ~15-30 seconds. The disbursement pipeline is asynchronous (background workers), so the statuses advance over time. Watch the order:\n\n  FA resolution -> funds available -> funds blocked -> sponsor dispatch -> beneficiaries credited -> reconciled.\n\nExpect 20 reconciled (happy), 2 not credited to their own account (bad_account / foreign bank), 3 never disbursed (missing_from_spar).",
+      "item": [
+        {
+          "name": "Batch control status (FA + dispatch)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{bridge_base_url}}/get_disbursement_batch_control"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n\n  \"request_header\": {\n    \"sender_app_mnemonic\": \"{{sender_app}}\",\n    \"sender_app_url\": \"{{sender_app_url}}\",\n    \"request_id\": \"{{$guid}}\",\n    \"request_timestamp\": \"{{$isoTimestamp}}\",\n    \"instance_id\": null\n  },\n  \"request_body\": {\n    \"pagination_request\": null,\n    \"request_payload\": \"{{envelope_id}}\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('batch control fetched (HTTP 200)', () => pm.response.code === 200);",
+                  "const j = pm.response.json() || {};",
+                  "const p = j.response_body && j.response_body.response_payload;",
+                  "if (p) {",
+                  "  console.log('FA resolution     : ' + p.fa_resolution_status);",
+                  "  console.log('Sponsor dispatch  : ' + p.sponsor_bank_dispatch_status);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Envelope status (funds)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{bridge_base_url}}/get_disbursement_envelope_status"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n\n  \"request_header\": {\n    \"sender_app_mnemonic\": \"{{sender_app}}\",\n    \"sender_app_url\": \"{{sender_app_url}}\",\n    \"request_id\": \"{{$guid}}\",\n    \"request_timestamp\": \"{{$isoTimestamp}}\",\n    \"instance_id\": null\n  },\n  \"request_body\": {\n    \"pagination_request\": null,\n    \"request_payload\": \"{{envelope_id}}\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('envelope status fetched (HTTP 200)', () => pm.response.code === 200);",
+                  "const j = pm.response.json() || {};",
+                  "const p = j.response_body && j.response_body.response_payload;",
+                  "if (p) {",
+                  "  console.log('disbursements received : ' + p.number_of_disbursements_received +",
+                  "              ' / ' + pm.environment.get('num_disbursements'));",
+                  "  console.log('funds available w/bank : ' + p.funds_available_with_bank);",
+                  "  console.log('funds blocked  w/bank  : ' + p.funds_blocked_with_bank);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Disbursement status (reconciliation)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{bridge_base_url}}/get_disbursement_status"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n\n  \"request_header\": {\n    \"sender_app_mnemonic\": \"{{sender_app}}\",\n    \"sender_app_url\": \"{{sender_app_url}}\",\n    \"request_id\": \"{{$guid}}\",\n    \"request_timestamp\": \"{{$isoTimestamp}}\",\n    \"instance_id\": null\n  },\n  \"request_body\": {\n    \"pagination_request\": null,\n    \"request_payload\": {{created_disbursement_ids}}\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('disbursement status fetched (HTTP 200)', () => pm.response.code === 200);",
+                  "const j = pm.response.json() || {};",
+                  "const p = j.response_body && j.response_body.response_payload;",
+                  "if (Array.isArray(p)) {",
+                  "  let reconciled = 0, pending = 0;",
+                  "  p.forEach(d => {",
+                  "    const recs = d.disbursement_recon_records;",
+                  "    (recs && recs.length) ? reconciled++ : pending++;",
+                  "  });",
+                  "  console.log('Disbursements: ' + p.length + ' total | reconciled: ' +",
+                  "              reconciled + ' | not-yet / skipped: ' + pending);",
+                  "  console.log('(Re-run me every ~15-30s; reconciled climbs as the async ' +",
+                  "              'pipeline advances. missing_from_spar rows never reconcile.)');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Did a SUCCESSFUL beneficiary get credited?",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{example_bank_base_url}}/check_funds"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"account_number\": \"{{sample_happy_account}}\",\n  \"account_currency\": \"{{currency}}\",\n  \"total_funds_needed\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('check_funds returned 200', () => pm.response.code === 200);",
+                  "const j = pm.response.json() || {};",
+                  "console.log('Successful beneficiary ' + pm.environment.get('sample_happy_account') +",
+                  "            ' credited? -> ' + (j.has_sufficient_funds === true));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Did a BAD-ACCOUNT beneficiary get credited?",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{example_bank_base_url}}/check_funds"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"account_number\": \"{{sample_bad_account}}\",\n  \"account_currency\": \"{{currency}}\",\n  \"total_funds_needed\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('check_funds returned a response', () => pm.response.code === 200 || pm.response.code >= 400);",
+                  "let credited = false;",
+                  "try { credited = (pm.response.json() || {}).has_sufficient_funds === true; } catch (e) {}",
+                  "console.log('Bad-account beneficiary ' + pm.environment.get('sample_bad_account') +",
+                  "            ' credited in their OWN account? -> ' + credited +",
+                  "            '  (expected false: a foreign-bank payment is routed to a clearing account)');"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "5 \u00b7 Cleanup \u2014 unlink SPAR",
+      "description": "DATA-DRIVEN. Select this folder + `beneficiaries.csv` and Run to remove the ID->FA links created in step 3. Disbursement data in the Bridge is left in place (it is namespaced by run_id and visible in the dashboards). Re-running the whole walkthrough creates a fresh run_id.",
+      "item": [
+        {
+          "name": "SPAR \u2014 unlink beneficiary",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{spar_base_url}}/unlink"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n\n  \"request_header\": {\n    \"sender_app_mnemonic\": \"{{sender_app}}\",\n    \"sender_app_url\": \"{{sender_app_url}}\",\n    \"request_id\": \"{{$guid}}\",\n    \"request_timestamp\": \"{{$isoTimestamp}}\",\n    \"instance_id\": null\n  },\n  \"request_body\": {\n    \"pagination_request\": null,\n    \"request_payload\": {\n      \"transaction_id\": \"{{run_id}}_ULK_{{beneficiary_id}}\",\n      \"unlink_request\": [\n        {\n          \"reference_id\": \"{{run_id}}_UREF_{{beneficiary_id}}\",\n          \"timestamp\": \"{{$isoTimestamp}}\",\n          \"id\": \"{{beneficiary_id}}\"\n        }\n      ]\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Tolerant: unlinking a never-linked id (missing_from_spar) is a harmless no-op.",
+                  "pm.test('unlink call completed', () => pm.response.code === 200 || pm.response.code >= 400);",
+                  "console.log('unlink ' + pm.iterationData.get('beneficiary_id') + ' -> ' + pm.response.code);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "run_id",
+      "value": ""
+    },
+    {
+      "key": "batch_control_id",
+      "value": ""
+    },
+    {
+      "key": "envelope_id",
+      "value": ""
+    },
+    {
+      "key": "created_disbursement_ids",
+      "value": "[]"
+    }
+  ]
+}

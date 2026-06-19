@@ -1,0 +1,717 @@
+#!/usr/bin/env python3
+"""Generate the G2P Bridge **API Walkthrough** Postman artifacts.
+
+This is the maintainer source-of-truth (like ``provision_dashboards.py`` for the
+Superset bundle). Running it emits three files that implementers import/run:
+
+  * ``beneficiaries.csv``                         — editable seed data (one row
+                                                    per beneficiary; the Postman
+                                                    Collection Runner data file)
+  * ``G2P-Bridge-API-Walkthrough.postman_collection.json``
+  * ``G2P-Bridge.postman_environment.json``
+
+The walkthrough drives the full digital-cash disbursement lifecycle against a
+live Bridge + SPAR + Example Bank, manually, from an implementer's laptop. It
+mirrors the request shapes used by the automated sanity suite (``test/sanity``),
+which is the single source of truth for the G2PConnect envelope and the staged
+pipeline. Auth is assumed disabled (signature/keymanager validation off).
+
+Run order (documented in GitBook → Developer Zone → API Walkthrough):
+
+  1 · Health checks                 (run once)
+  2 · Create disbursement envelope  (run once)
+  3 · Seed SPAR + create disbursements   (run with beneficiaries.csv)
+  4 · Observe the pipeline          (run manually, RE-RUN as the async stages advance)
+  5 · Cleanup — unlink SPAR         (run with beneficiaries.csv)
+"""
+
+from __future__ import annotations
+
+import csv
+import json
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+
+# --------------------------------------------------------------------------- #
+# 1) Seed data — editable CSV (the Collection Runner "data file").
+# --------------------------------------------------------------------------- #
+# Volume: enough to look like a real batch (not a 2-row sanity check), small
+# enough to run in well under a minute. Composition exercises the happy path
+# plus the two negative cases the implementers asked for.
+N_HAPPY = 20
+N_MISSING = 3  # not linked in SPAR  -> FA resolution skips them (never paid)
+N_BADACCT = 2  # linked at a FOREIGN bank -> money never lands in their account
+
+
+def _csv_rows() -> list[dict]:
+    rows: list[dict] = []
+    i = 1
+
+    def row(scenario: str, bank: str) -> dict:
+        nonlocal i
+        r = {
+            "beneficiary_id": f"BENE_{i:04d}",
+            "beneficiary_name": f"Beneficiary {i:04d}",
+            "account_number": f"ACC{1000000 + i}",
+            "branch_code": "0001",
+            "bank_code": bank,
+            "mobile": f"+1000{i:06d}",
+            "email": f"bene{i:04d}@example.org",
+            "amount": 1000,
+            "currency": "USD",
+            "scenario": scenario,
+        }
+        i += 1
+        return r
+
+    for _ in range(N_HAPPY):
+        rows.append(row("happy", "EXAMPLE-BANK"))
+    for _ in range(N_MISSING):
+        rows.append(row("missing_from_spar", "EXAMPLE-BANK"))
+    for _ in range(N_BADACCT):
+        # A valid-format account at a bank the simulator treats as "foreign": the
+        # FA resolves, but the credit is routed to a clearing account, so the
+        # beneficiary's own account is never funded (with ~30% explicit reversal).
+        rows.append(row("bad_account", "OTHER-BANK"))
+    return rows
+
+
+CSV_COLUMNS = [
+    "beneficiary_id",
+    "beneficiary_name",
+    "account_number",
+    "branch_code",
+    "bank_code",
+    "mobile",
+    "email",
+    "amount",
+    "currency",
+    "scenario",
+]
+
+
+def write_csv() -> None:
+    rows = _csv_rows()
+    with open(HERE / "beneficiaries.csv", "w", newline="") as fh:
+        w = csv.DictWriter(fh, fieldnames=CSV_COLUMNS)
+        w.writeheader()
+        w.writerows(rows)
+    total = sum(r["amount"] for r in rows)
+    print(f"beneficiaries.csv: {len(rows)} rows, total amount {total}")
+
+
+# --------------------------------------------------------------------------- #
+# Small helpers to build Postman v2.1 nodes.
+# --------------------------------------------------------------------------- #
+def _script(lines: str) -> dict:
+    return {"type": "text/javascript", "exec": lines.strip("\n").split("\n")}
+
+
+def _event(listen: str, lines: str) -> dict:
+    return {"listen": listen, "script": _script(lines)}
+
+
+def _raw_body(obj_text: str) -> dict:
+    return {
+        "mode": "raw",
+        "raw": obj_text.strip("\n"),
+        "options": {"raw": {"language": "json"}},
+    }
+
+
+def _url(raw: str) -> dict:
+    # Postman is happy with just {"raw": ...}; it parses host/path on import.
+    return {"raw": raw}
+
+
+def _request(method: str, url_raw: str, body_text: str | None = None) -> dict:
+    req: dict = {
+        "method": method,
+        "header": (
+            [{"key": "Content-Type", "value": "application/json"}] if body_text else []
+        ),
+        "url": _url(url_raw),
+    }
+    if body_text is not None:
+        req["body"] = _raw_body(body_text)
+    return req
+
+
+def item(name, method, url_raw, *, body=None, pre=None, test=None, desc=None) -> dict:
+    node: dict = {"name": name, "request": _request(method, url_raw, body)}
+    events = []
+    if pre:
+        events.append(_event("prerequest", pre))
+    if test:
+        events.append(_event("test", test))
+    if events:
+        node["event"] = events
+    if desc:
+        node["request"]["description"] = desc
+    return node
+
+
+# --------------------------------------------------------------------------- #
+# Reusable G2PConnect request_header (dynamic id + timestamp via Postman vars).
+# --------------------------------------------------------------------------- #
+HEADER = """
+  "request_header": {
+    "sender_app_mnemonic": "{{sender_app}}",
+    "sender_app_url": "{{sender_app_url}}",
+    "request_id": "{{$guid}}",
+    "request_timestamp": "{{$isoTimestamp}}",
+    "instance_id": null
+  }"""
+
+
+# =========================================================================== #
+# Folder 1 — Health checks
+# =========================================================================== #
+F1 = {
+    "name": "1 · Health checks",
+    "description": (
+        "Confirm the three services are reachable and the treasury (sponsor) "
+        "account is funded. Run this once, first.\n\n"
+        "Update the three base URLs in the environment to match YOUR namespace "
+        "before running."
+    ),
+    "item": [
+        item(
+            "Bridge — ping",
+            "GET",
+            "{{bridge_base_url}}/ping",
+            test="""
+pm.test('Bridge reachable (HTTP 200)', () => pm.response.code === 200);
+console.log('Bridge ping: ' + pm.response.code);
+""",
+        ),
+        item(
+            "Example Bank — ping",
+            "GET",
+            "{{example_bank_base_url}}/ping",
+            test="""
+pm.test('Example Bank reachable (HTTP 200)', () => pm.response.code === 200);
+console.log('Example Bank ping: ' + pm.response.code);
+""",
+        ),
+        item(
+            "Example Bank — treasury is funded",
+            "POST",
+            "{{example_bank_base_url}}/check_funds",
+            body="""
+{
+  "account_number": "{{treasury_account}}",
+  "account_currency": "{{currency}}",
+  "total_funds_needed": {{total_amount}}
+}""",
+            test="""
+pm.test('check_funds returned 200', () => pm.response.code === 200);
+const j = pm.response.json() || {};
+pm.test('Treasury has enough for the whole batch', () => j.has_sufficient_funds === true);
+console.log('Treasury ' + pm.environment.get('treasury_account') +
+            ' sufficient for ' + pm.environment.get('total_amount') +
+            '? -> ' + j.has_sufficient_funds);
+""",
+            desc="The sponsor/treasury account must hold at least total_amount or "
+            "the funds-check stage will never pass.",
+        ),
+    ],
+}
+
+
+# =========================================================================== #
+# Folder 2 — Create the disbursement envelope (run once)
+# =========================================================================== #
+ENV_PRE = """
+// Start a fresh campaign: new run id, batch-control id, empty id list.
+const stamp = new Date().toISOString().replace(/[^0-9]/g, '').slice(0, 14);
+const run = (pm.environment.get('run_prefix') || 'TRAINING') + '_' + stamp;
+pm.collectionVariables.set('run_id', run);
+pm.collectionVariables.set('batch_control_id', run + '_BCTL');
+pm.collectionVariables.set('created_disbursement_ids', '[]');
+// Default the schedule date to today if the implementer left it blank.
+if (!pm.environment.get('schedule_date')) {
+  pm.environment.set('schedule_date', new Date().toISOString().slice(0, 10));
+}
+console.log('Campaign run_id = ' + run + ' | schedule_date = ' +
+            pm.environment.get('schedule_date'));
+"""
+
+ENV_BODY = (
+    "{\n"
+    + HEADER
+    + """,
+  "request_body": {
+    "pagination_request": null,
+    "request_payload": [
+      {
+        "benefit_program_id": {{program_id}},
+        "benefit_program_mnemonic": "{{program_mnemonic}}",
+        "benefit_program_description": "API walkthrough training program",
+        "target_registry": "{{target_registry}}",
+        "benefit_code_id": {{benefit_code_id}},
+        "benefit_code_mnemonic": "{{benefit_code_mnemonic}}",
+        "benefit_code_description": "Digital cash training",
+        "benefit_type": "CASH_DIGITAL",
+        "disbursement_cycle_id": {{cycle_id}},
+        "disbursement_frequency": "{{frequency}}",
+        "cycle_code_mnemonic": "{{program_mnemonic}}_CYCLE",
+        "number_of_beneficiaries": {{num_disbursements}},
+        "number_of_disbursements": {{num_disbursements}},
+        "total_disbursement_quantity": {{total_amount}},
+        "measurement_unit": "{{currency}}",
+        "disbursement_schedule_date": "{{schedule_date}}"
+      }
+    ]
+  }
+}"""
+)
+
+ENV_TEST = """
+pm.test('Envelope accepted (HTTP 200)', () => pm.response.code === 200);
+const j = pm.response.json() || {};
+const st = j.response_header && j.response_header.response_status;
+pm.test('response_status SUCCESS', () => st === 'SUCCESS');
+const p = j.response_body && j.response_body.response_payload;
+const eid = Array.isArray(p) && p.length ? p[0].id : null;
+pm.test('envelope id returned', () => !!eid);
+pm.collectionVariables.set('envelope_id', eid || '');
+console.log('envelope_id = ' + eid + '  | declared ' +
+            pm.environment.get('num_disbursements') + ' disbursements, total ' +
+            pm.environment.get('total_amount'));
+"""
+
+F2 = {
+    "name": "2 · Create disbursement envelope",
+    "description": (
+        "Creates ONE CASH_DIGITAL envelope. Run once (do not use a data file).\n\n"
+        "IMPORTANT: `num_disbursements` and `total_amount` in the environment "
+        "must match your CSV exactly — the row count, and the sum of the "
+        "`amount` column. The pipeline only advances once it has received "
+        "exactly that many disbursements for exactly that total. The shipped "
+        "CSV is 25 rows x 1000 = 25000."
+    ),
+    "item": [
+        item(
+            "Create envelope (CASH_DIGITAL)",
+            "POST",
+            "{{bridge_base_url}}/create_disbursement_envelopes",
+            body=ENV_BODY,
+            pre=ENV_PRE,
+            test=ENV_TEST,
+        )
+    ],
+}
+
+
+# =========================================================================== #
+# Folder 3 — Seed SPAR + create disbursements (DATA-DRIVEN with the CSV)
+# =========================================================================== #
+LINK_PRE = """
+// Build the SPAR link_request from the current CSV row. For the
+// 'missing_from_spar' scenario we send an EMPTY array, so the beneficiary is
+// deliberately left unmapped (this is the 'ID missing from SPAR' case).
+const sc = (pm.iterationData.get('scenario') || 'happy');
+const bid = pm.iterationData.get('beneficiary_id');
+const sid = Number(pm.environment.get('spar_strategy_id'));
+let arr = [];
+if (sc !== 'missing_from_spar') {
+  arr = [{
+    reference_id: pm.variables.replaceIn('{{run_id}}') + '_REF_' + bid,
+    timestamp: new Date().toISOString(),
+    id: bid,
+    fa: {
+      strategy_id: sid,
+      fa_type: 'BANK',
+      bank_name: (pm.iterationData.get('bank_code') || '') + ' Bank',
+      bank_code: pm.iterationData.get('bank_code'),
+      branch_name: 'Branch ' + (pm.iterationData.get('branch_code') || ''),
+      branch_code: pm.iterationData.get('branch_code'),
+      account_number: pm.iterationData.get('account_number')
+    },
+    name: pm.iterationData.get('beneficiary_name'),
+    additional_info: [{ strategy_id: sid }],
+    locale: 'en'
+  }];
+}
+pm.variables.set('link_request_json', JSON.stringify(arr));
+"""
+
+LINK_BODY = (
+    "{\n"
+    + HEADER
+    + """,
+  "request_body": {
+    "pagination_request": null,
+    "request_payload": {
+      "transaction_id": "{{run_id}}_LNK_{{beneficiary_id}}",
+      "link_request": {{link_request_json}}
+    }
+  }
+}"""
+)
+
+LINK_TEST = """
+const sc = (pm.iterationData.get('scenario') || 'happy');
+const bid = pm.iterationData.get('beneficiary_id');
+if (sc === 'missing_from_spar') {
+  console.log('-> ' + bid + ': intentionally NOT linked (simulating beneficiary missing from SPAR)');
+  pm.test(bid + ' left unmapped (missing_from_spar)', () => true);
+} else {
+  pm.test('SPAR link accepted (HTTP 200)', () => pm.response.code === 200);
+  const j = pm.response.json() || {};
+  const st = j.response_header && j.response_header.response_status;
+  pm.test('SPAR response_status SUCCESS', () => st === 'SUCCESS');
+  console.log('linked ' + bid + ' @ ' + pm.iterationData.get('bank_code'));
+}
+"""
+
+DISB_PRE = """
+const bid = pm.iterationData.get('beneficiary_id');
+pm.variables.set('bene_id', bid);
+pm.variables.set('disb_id', pm.variables.replaceIn('{{run_id}}') + '_DISB_' + bid);
+"""
+
+DISB_BODY = (
+    "{\n"
+    + HEADER
+    + """,
+  "request_body": {
+    "pagination_request": null,
+    "disbursement_batch_control_id": "{{batch_control_id}}",
+    "request_payload": [
+      {
+        "disbursement_id": "{{disb_id}}",
+        "disbursement_envelope_id": "{{envelope_id}}",
+        "beneficiary_id": "{{bene_id}}",
+        "beneficiary_name": "{{beneficiary_name}}",
+        "disbursement_quantity": {{amount}},
+        "disbursement_cycle_id": {{cycle_id}},
+        "narrative": "Training disbursement for {{bene_id}}"
+      }
+    ]
+  }
+}"""
+)
+
+DISB_TEST = """
+pm.test('Disbursement accepted (HTTP 200)', () => pm.response.code === 200);
+const j = pm.response.json() || {};
+const st = j.response_header && j.response_header.response_status;
+pm.test('response_status SUCCESS', () => st === 'SUCCESS');
+let ids = [];
+try { ids = JSON.parse(pm.collectionVariables.get('created_disbursement_ids') || '[]'); } catch (e) {}
+ids.push(pm.variables.get('disb_id'));
+pm.collectionVariables.set('created_disbursement_ids', JSON.stringify(ids));
+console.log('created ' + pm.variables.get('disb_id') +
+            ' [scenario=' + (pm.iterationData.get('scenario') || 'happy') + ']');
+"""
+
+F3 = {
+    "name": "3 · Seed SPAR + create disbursements",
+    "description": (
+        "DATA-DRIVEN. In the Collection Runner, select THIS folder, choose "
+        "`beneficiaries.csv` as the data file, then Run. It iterates once per "
+        "row: link the beneficiary in SPAR, then create one disbursement "
+        "against the envelope from step 2.\n\n"
+        "Rows with scenario=missing_from_spar are left unmapped on purpose."
+    ),
+    "item": [
+        item(
+            "SPAR — link beneficiary",
+            "POST",
+            "{{spar_base_url}}/link",
+            body=LINK_BODY,
+            pre=LINK_PRE,
+            test=LINK_TEST,
+        ),
+        item(
+            "Bridge — create disbursement",
+            "POST",
+            "{{bridge_base_url}}/create_disbursements",
+            body=DISB_BODY,
+            pre=DISB_PRE,
+            test=DISB_TEST,
+        ),
+    ],
+}
+
+
+# =========================================================================== #
+# Folder 4 — Observe the pipeline (run manually, RE-RUN as stages advance)
+# =========================================================================== #
+ENVELOPE_ID_BODY = (
+    "{\n"
+    + HEADER
+    + """,
+  "request_body": {
+    "pagination_request": null,
+    "request_payload": "{{envelope_id}}"
+  }
+}"""
+)
+
+BATCH_TEST = """
+pm.test('batch control fetched (HTTP 200)', () => pm.response.code === 200);
+const j = pm.response.json() || {};
+const p = j.response_body && j.response_body.response_payload;
+if (p) {
+  console.log('FA resolution     : ' + p.fa_resolution_status);
+  console.log('Sponsor dispatch  : ' + p.sponsor_bank_dispatch_status);
+}
+"""
+
+ENVSTATUS_TEST = """
+pm.test('envelope status fetched (HTTP 200)', () => pm.response.code === 200);
+const j = pm.response.json() || {};
+const p = j.response_body && j.response_body.response_payload;
+if (p) {
+  console.log('disbursements received : ' + p.number_of_disbursements_received +
+              ' / ' + pm.environment.get('num_disbursements'));
+  console.log('funds available w/bank : ' + p.funds_available_with_bank);
+  console.log('funds blocked  w/bank  : ' + p.funds_blocked_with_bank);
+}
+"""
+
+DISBSTATUS_BODY = (
+    "{\n"
+    + HEADER
+    + """,
+  "request_body": {
+    "pagination_request": null,
+    "request_payload": {{created_disbursement_ids}}
+  }
+}"""
+)
+
+DISBSTATUS_TEST = """
+pm.test('disbursement status fetched (HTTP 200)', () => pm.response.code === 200);
+const j = pm.response.json() || {};
+const p = j.response_body && j.response_body.response_payload;
+if (Array.isArray(p)) {
+  let reconciled = 0, pending = 0;
+  p.forEach(d => {
+    const recs = d.disbursement_recon_records;
+    (recs && recs.length) ? reconciled++ : pending++;
+  });
+  console.log('Disbursements: ' + p.length + ' total | reconciled: ' +
+              reconciled + ' | not-yet / skipped: ' + pending);
+  console.log('(Re-run me every ~15-30s; reconciled climbs as the async ' +
+              'pipeline advances. missing_from_spar rows never reconcile.)');
+}
+"""
+
+CHECK_CREDITED_BODY = """
+{
+  "account_number": "{{sample_happy_account}}",
+  "account_currency": "{{currency}}",
+  "total_funds_needed": 1
+}"""
+
+CHECK_CREDITED_TEST = """
+pm.test('check_funds returned 200', () => pm.response.code === 200);
+const j = pm.response.json() || {};
+console.log('Successful beneficiary ' + pm.environment.get('sample_happy_account') +
+            ' credited? -> ' + (j.has_sufficient_funds === true));
+"""
+
+CHECK_FAILED_BODY = """
+{
+  "account_number": "{{sample_bad_account}}",
+  "account_currency": "{{currency}}",
+  "total_funds_needed": 1
+}"""
+
+CHECK_FAILED_TEST = """
+pm.test('check_funds returned a response', () => pm.response.code === 200 || pm.response.code >= 400);
+let credited = false;
+try { credited = (pm.response.json() || {}).has_sufficient_funds === true; } catch (e) {}
+console.log('Bad-account beneficiary ' + pm.environment.get('sample_bad_account') +
+            ' credited in their OWN account? -> ' + credited +
+            '  (expected false: a foreign-bank payment is routed to a clearing account)');
+"""
+
+F4 = {
+    "name": "4 · Observe the pipeline (re-run me)",
+    "description": (
+        "Run these manually AFTER step 3, and RE-RUN them every ~15-30 seconds. "
+        "The disbursement pipeline is asynchronous (background workers), so the "
+        "statuses advance over time. Watch the order:\n\n"
+        "  FA resolution -> funds available -> funds blocked -> sponsor "
+        "dispatch -> beneficiaries credited -> reconciled.\n\n"
+        "Expect 20 reconciled (happy), 2 not credited to their own account "
+        "(bad_account / foreign bank), 3 never disbursed (missing_from_spar)."
+    ),
+    "item": [
+        item(
+            "Batch control status (FA + dispatch)",
+            "POST",
+            "{{bridge_base_url}}/get_disbursement_batch_control",
+            body=ENVELOPE_ID_BODY,
+            test=BATCH_TEST,
+        ),
+        item(
+            "Envelope status (funds)",
+            "POST",
+            "{{bridge_base_url}}/get_disbursement_envelope_status",
+            body=ENVELOPE_ID_BODY,
+            test=ENVSTATUS_TEST,
+        ),
+        item(
+            "Disbursement status (reconciliation)",
+            "POST",
+            "{{bridge_base_url}}/get_disbursement_status",
+            body=DISBSTATUS_BODY,
+            test=DISBSTATUS_TEST,
+        ),
+        item(
+            "Did a SUCCESSFUL beneficiary get credited?",
+            "POST",
+            "{{example_bank_base_url}}/check_funds",
+            body=CHECK_CREDITED_BODY,
+            test=CHECK_CREDITED_TEST,
+        ),
+        item(
+            "Did a BAD-ACCOUNT beneficiary get credited?",
+            "POST",
+            "{{example_bank_base_url}}/check_funds",
+            body=CHECK_FAILED_BODY,
+            test=CHECK_FAILED_TEST,
+        ),
+    ],
+}
+
+
+# =========================================================================== #
+# Folder 5 — Cleanup: unlink SPAR (DATA-DRIVEN with the CSV)
+# =========================================================================== #
+UNLINK_BODY = (
+    "{\n"
+    + HEADER
+    + """,
+  "request_body": {
+    "pagination_request": null,
+    "request_payload": {
+      "transaction_id": "{{run_id}}_ULK_{{beneficiary_id}}",
+      "unlink_request": [
+        {
+          "reference_id": "{{run_id}}_UREF_{{beneficiary_id}}",
+          "timestamp": "{{$isoTimestamp}}",
+          "id": "{{beneficiary_id}}"
+        }
+      ]
+    }
+  }
+}"""
+)
+
+UNLINK_TEST = """
+// Tolerant: unlinking a never-linked id (missing_from_spar) is a harmless no-op.
+pm.test('unlink call completed', () => pm.response.code === 200 || pm.response.code >= 400);
+console.log('unlink ' + pm.iterationData.get('beneficiary_id') + ' -> ' + pm.response.code);
+"""
+
+F5 = {
+    "name": "5 · Cleanup — unlink SPAR",
+    "description": (
+        "DATA-DRIVEN. Select this folder + `beneficiaries.csv` and Run to "
+        "remove the ID->FA links created in step 3. Disbursement data in the "
+        "Bridge is left in place (it is namespaced by run_id and visible in the "
+        "dashboards). Re-running the whole walkthrough creates a fresh run_id."
+    ),
+    "item": [
+        item(
+            "SPAR — unlink beneficiary",
+            "POST",
+            "{{spar_base_url}}/unlink",
+            body=UNLINK_BODY,
+            test=UNLINK_TEST,
+        )
+    ],
+}
+
+
+# --------------------------------------------------------------------------- #
+# Collection + environment assembly.
+# --------------------------------------------------------------------------- #
+COLLECTION = {
+    "info": {
+        "name": "G2P Bridge - API Walkthrough",
+        "description": (
+            "A guided, manual walkthrough of the G2P Bridge disbursement APIs "
+            "(digital cash), for implementers who have installed G2P Bridge + "
+            "SPAR + the Example Bank. Seed data comes from `beneficiaries.csv` "
+            "(edit it; change the schedule date / amounts as you like). Auth is "
+            "assumed disabled.\n\n"
+            "Run the five folders in order. Folders 3 and 5 are DATA-DRIVEN: run "
+            "them from the Collection Runner with `beneficiaries.csv` as the "
+            "data file. Folder 4 is meant to be RE-RUN repeatedly while the "
+            "asynchronous pipeline advances.\n\n"
+            "Full instructions: GitBook -> Developer Zone -> API Walkthrough."
+        ),
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    },
+    "item": [F1, F2, F3, F4, F5],
+    "variable": [
+        {"key": "run_id", "value": ""},
+        {"key": "batch_control_id", "value": ""},
+        {"key": "envelope_id", "value": ""},
+        {"key": "created_disbursement_ids", "value": "[]"},
+    ],
+}
+
+# Environment defaults target the `trial` namespace so it works out-of-the-box
+# there; implementers change the namespace in the three URLs for their own setup.
+ENV_VARS = [
+    ("bridge_base_url", "https://g2p-bridge.trial.openg2p.org/api/g2p-bridge"),
+    ("spar_base_url", "https://spar.trial.openg2p.org/api/mapper/mapper"),
+    (
+        "example_bank_base_url",
+        "https://example-bank.trial.openg2p.org/api/example-bank",
+    ),
+    ("sender_app", "TRAINING"),
+    ("sender_app_url", "http://training.local"),
+    ("spar_strategy_id", "5"),
+    ("treasury_account", "SPONSOR0001"),
+    ("currency", "USD"),
+    ("program_id", "990001"),
+    ("benefit_code_id", "990002"),
+    ("cycle_id", "1"),
+    ("frequency", "Monthly"),
+    ("program_mnemonic", "TRAINING"),
+    ("benefit_code_mnemonic", "TRAINING_CASH"),
+    ("target_registry", "TRAINING"),
+    ("run_prefix", "TRAINING"),
+    ("num_disbursements", "25"),
+    ("total_amount", "25000"),
+    ("schedule_date", ""),
+    ("sample_happy_account", "ACC1000001"),
+    ("sample_bad_account", "ACC1000024"),
+]
+
+ENVIRONMENT = {
+    "name": "G2P Bridge - Walkthrough (edit namespace)",
+    "values": [
+        {"key": k, "value": v, "type": "default", "enabled": True} for k, v in ENV_VARS
+    ],
+    "_postman_variable_scope": "environment",
+}
+
+
+def write_json(name: str, obj: dict) -> None:
+    path = HERE / name
+    with open(path, "w") as fh:
+        json.dump(obj, fh, indent=2)
+        fh.write("\n")
+    print(f"{name}: {path.stat().st_size} bytes")
+
+
+def main() -> None:
+    write_csv()
+    write_json("G2P-Bridge-API-Walkthrough.postman_collection.json", COLLECTION)
+    write_json("G2P-Bridge.postman_environment.json", ENVIRONMENT)
+
+
+if __name__ == "__main__":
+    main()
