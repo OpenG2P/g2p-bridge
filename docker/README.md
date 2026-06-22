@@ -3,7 +3,7 @@
 Dockerfiles for the G2P Bridge service images.
 
 - `g2p-bridge-apis/` — `partner-api` and `beneportal-api` images.
-- `g2p-bridge-celery/` — a **single** celery image (`openg2p/openg2p-g2p-bridge-celery`)
+- `g2p-bridge-celery/` — a **single** celery image (`openg2p/openg2p-bridge-celery`)
   that contains both the celery-workers and celery-beat-producers code. The role
   is chosen at runtime via the `CELERY_APP` / `CELERY_OPTS` environment variables
   (see `run_celery.py`); the Helm chart sets these so the same image runs as the

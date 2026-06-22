@@ -32,10 +32,10 @@ jobs:
       matrix:
         include:
           - name: partner-api
-            image: openg2p/openg2p-g2p-bridge-partner-api
+            image: openg2p/openg2p-bridge-partner-api
             dockerfile: docker/g2p-bridge-apis/partner-api/Dockerfile
           - name: beneportal-api
-            image: openg2p/openg2p-g2p-bridge-bene-portal-api
+            image: openg2p/openg2p-bridge-bene-portal-api
             dockerfile: docker/g2p-bridge-apis/beneportal-api/Dockerfile
     steps:
       - uses: actions/checkout@v4

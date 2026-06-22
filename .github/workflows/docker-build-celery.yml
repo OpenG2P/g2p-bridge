@@ -33,7 +33,7 @@ on:
         type: string
 
 env:
-  IMAGE_NAME: openg2p/openg2p-g2p-bridge-celery
+  IMAGE_NAME: openg2p/openg2p-bridge-celery
 
 jobs:
   docker-build:
