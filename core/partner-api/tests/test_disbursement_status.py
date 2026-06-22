@@ -69,6 +69,8 @@ async def test_get_disbursement_status_success(mock_request_validation, mock_ser
             request_id="123",
             request_timestamp=datetime.now(),
             sender_id="",
+            sender_app_mnemonic="test_app",
+            sender_app_url="http://test.app",
         ),
         request_body=DisbursementStatusRequestBody(
             request_payload=["disb123"],
@@ -122,6 +124,8 @@ async def test_get_disbursement_status_failure(
             request_id="123",
             request_timestamp=datetime.now(),
             sender_id="",
+            sender_app_mnemonic="test_app",
+            sender_app_url="http://test.app",
         ),
         request_body=DisbursementStatusRequestBody(
             request_payload=["disb123"],

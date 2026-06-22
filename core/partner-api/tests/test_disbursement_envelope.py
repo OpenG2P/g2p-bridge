@@ -86,6 +86,8 @@ async def test_create_disbursement_envelope_success(mock_request_validation, moc
             request_id="123",
             request_timestamp=datetime.now(),
             sender_id="",
+            sender_app_mnemonic="test_app",
+            sender_app_url="http://test.app",
         ),
         request_body=DisbursementEnvelopeRequestBody(
             request_payload=[request_payload],
@@ -149,6 +151,8 @@ async def test_create_disbursement_envelope_errors(
             request_id="123",
             request_timestamp=datetime.now(),
             sender_id="",
+            sender_app_mnemonic="test_app",
+            sender_app_url="http://test.app",
         ),
         request_body=DisbursementEnvelopeRequestBody(
             request_payload=[request_payload],
@@ -217,6 +221,8 @@ async def test_cancel_disbursement_envelope_success(mock_request_validation, moc
             request_id="123",
             request_timestamp=datetime.now(),
             sender_id="",
+            sender_app_mnemonic="test_app",
+            sender_app_url="http://test.app",
         ),
         request_body=DisbursementEnvelopeRequestBody(
             request_payload=[DisbursementEnvelopePayload(id="env123")],
@@ -272,6 +278,8 @@ async def test_cancel_disbursement_envelope_failure(
             request_id="123",
             request_timestamp=datetime.now(),
             sender_id="",
+            sender_app_mnemonic="test_app",
+            sender_app_url="http://test.app",
         ),
         request_body=DisbursementEnvelopeRequestBody(
             request_payload=[DisbursementEnvelopePayload(id="env123")],
@@ -349,6 +357,8 @@ async def test_amend_disbursement_envelope_success(mock_request_validation, mock
             request_id="123",
             request_timestamp=datetime.now(),
             sender_id="",
+            sender_app_mnemonic="test_app",
+            sender_app_url="http://test.app",
         ),
         request_body=DisbursementEnvelopeRequestBody(
             request_payload=[request_payload],
@@ -402,6 +412,8 @@ async def test_amend_disbursement_envelope_errors(
             request_id="123",
             request_timestamp=datetime.now(),
             sender_id="",
+            sender_app_mnemonic="test_app",
+            sender_app_url="http://test.app",
         ),
         request_body=DisbursementEnvelopeRequestBody(
             request_payload=[DisbursementEnvelopePayload(id="env123")],
@@ -470,6 +482,8 @@ async def test_create_envelope_various_benefit_types(
             request_id="123",
             request_timestamp=datetime.now(),
             sender_id="",
+            sender_app_mnemonic="test_app",
+            sender_app_url="http://test.app",
         ),
         request_body=DisbursementEnvelopeRequestBody(
             request_payload=[payload],
@@ -555,6 +569,8 @@ async def test_bulk_create_mixed_benefit_types(mock_request_validation, mock_ser
             request_id="123",
             request_timestamp=datetime.now(),
             sender_id="",
+            sender_app_mnemonic="test_app",
+            sender_app_url="http://test.app",
         ),
         request_body=DisbursementEnvelopeRequestBody(
             request_payload=payloads,

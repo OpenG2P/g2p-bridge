@@ -50,6 +50,8 @@ async def test_create_disbursements_success(mock_request_validation, mock_servic
             request_id="123",
             request_timestamp=datetime.now(),
             sender_id="",
+            sender_app_mnemonic="test_app",
+            sender_app_url="http://test.app",
         ),
         request_body=DisbursementRequestBody(
             request_payload=disbursement_payloads,
@@ -104,6 +106,8 @@ async def test_create_disbursements_failure(mock_request_validation, mock_servic
             request_id="123",
             request_timestamp=datetime.now(),
             sender_id="",
+            sender_app_mnemonic="test_app",
+            sender_app_url="http://test.app",
         ),
         request_body=DisbursementRequestBody(
             request_payload=disbursement_payloads,
@@ -118,7 +122,7 @@ async def test_create_disbursements_failure(mock_request_validation, mock_servic
                 request_id="123",
                 response_status=G2PResponseStatus.ERROR,
                 response_error_code=G2PBridgeErrorCodes.INVALID_DISBURSEMENT_PAYLOAD.value,
-                response_error_message=G2PBridgeErrorCodes.INVALID_DISBURSEMENT_PAYLOAD.description,
+                response_error_message=G2PBridgeErrorCodes.INVALID_DISBURSEMENT_PAYLOAD.value,
                 response_timestamp=datetime.now(),
             ),
             response_body=DisbursementResponseBody(
@@ -172,6 +176,8 @@ async def test_cancel_disbursements_success(mock_request_validation, mock_servic
             request_id="123",
             request_timestamp=datetime.now(),
             sender_id="",
+            sender_app_mnemonic="test_app",
+            sender_app_url="http://test.app",
         ),
         request_body=DisbursementRequestBody(
             request_payload=disbursement_payloads,
@@ -230,6 +236,8 @@ async def test_cancel_disbursements_failure(mock_request_validation, mock_servic
             request_id="123",
             request_timestamp=datetime.now(),
             sender_id="",
+            sender_app_mnemonic="test_app",
+            sender_app_url="http://test.app",
         ),
         request_body=DisbursementRequestBody(
             request_payload=disbursement_payloads,
@@ -244,7 +252,7 @@ async def test_cancel_disbursements_failure(mock_request_validation, mock_servic
                 request_id="123",
                 response_status=G2PResponseStatus.ERROR,
                 response_error_code=G2PBridgeErrorCodes.DISBURSEMENT_ALREADY_CANCELED.value,
-                response_error_message=G2PBridgeErrorCodes.DISBURSEMENT_ALREADY_CANCELED.description,
+                response_error_message=G2PBridgeErrorCodes.DISBURSEMENT_ALREADY_CANCELED.value,
                 response_timestamp=datetime.now(),
             ),
             response_body=DisbursementResponseBody(
