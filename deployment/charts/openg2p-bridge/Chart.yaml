@@ -2,6 +2,15 @@ apiVersion: v2
 name: openg2p-bridge
 description: Helm chart for OpenG2P G2P Bridge (with optional bundled Example Bank simulator)
 type: application
+# Version handling:
+#   This `version` is a STATIC placeholder — NOT the published version. The
+#   helm-publish workflow derives the real version from the BRANCH NAME and
+#   overrides this at package time via `helm package --version`:
+#       develop  -> 0.0.0-develop.<run-number>
+#       N.N      -> N.N.0-develop.<run-number>   (Helm needs a 3-part SemVer)
+#       N.N.N    -> N.N.N                          (frozen release, no suffix)
+#   Bumping the value below has no effect on CI-published charts; it is used only
+#   by a local `helm package` / `helm install .` that does not pass --version.
 version: 0.0.0-develop
 appVersion: "develop"
 dependencies:
