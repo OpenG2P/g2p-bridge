@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime
 
-from openg2p_fastapi_common.schemas import G2PRequestHeader
+from openg2p_fastapi_common.schemas import G2PRequestHeader, G2PResponseStatus
 from openg2p_spar_models.schemas.resolve import (
     ResolveRequest as SparResolveRequest,
 )
@@ -58,6 +58,21 @@ class SPARMapper(MapperInterface):
                 f"Transaction ID: {spar_resolve_response.response_body.response_payload.transaction_id}"
                 f"Response: {spar_resolve_response}"
             )
+
+            # SPAR rejected the request (e.g. its OWN internal/DB error, such as a
+            # stale "connection is closed"). Surface it as a failure (return None)
+            # so the worker leaves fa_resolution PENDING and the resolution beat
+            # RETRIES — instead of silently storing zero financial addresses and
+            # disbursing an empty batch. A genuine "beneficiary not mapped" comes
+            # back as SUCCESS with an empty fa for that id, which is handled later.
+            if spar_resolve_response.response_header.response_status != G2PResponseStatus.SUCCESS:
+                _logger.error(
+                    "SPAR resolve returned non-success status "
+                    f"'{spar_resolve_response.response_header.response_status}' "
+                    f"(error_code={spar_resolve_response.response_header.response_error_code}); "
+                    "treating as a failure so the batch is retried."
+                )
+                return None
 
             # Convert SPAR ResolveResponse to custom ResolveResponse
             resolve_response = self._convert_from_spar_response(spar_resolve_response)
