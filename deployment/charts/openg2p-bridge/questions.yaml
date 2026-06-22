@@ -1,10 +1,8 @@
 questions:
 # ----------------------------- General -----------------------------
-- variable: global.namespace
-  description: Namespace/environment segment used to derive all ingress hostnames (e.g. g2p-bridge.<namespace>.openg2p.org)
-  type: string
-  label: Namespace
-  group: General
+# NOTE: the hostname "namespace" segment is auto-derived from the install
+# namespace (.Release.Namespace), so it is intentionally not asked here. Override
+# the individual hostnames below if a host must differ from that default.
 - variable: global.g2pBridgeHostname
   description: Hostname for the G2P Bridge partner API
   type: string
@@ -270,16 +268,16 @@ questions:
 
 # ----------------------------- Sanity suite -------------------------
 - variable: sanity.enabled
-  description: Deploy the regression sanity suite (runs on each install/upgrade and serves an HTML report). Disabled by default.
+  description: Deploy the regression sanity suite. It runs the read-only L0 (smoke) and L1 (contract) API checks on each install/upgrade and serves an HTML report — no test data is created. Enabled by default.
   type: boolean
-  default: false
-  label: Enable Sanity Suite
+  default: true
+  label: Enable Sanity Suite (L0 smoke + L1 contract)
   group: Sanity Suite
 - variable: sanity.runE2e
-  description: Include the full end-to-end flow (CREATES test data and moves treasury funds). Leave off for smoke+contract only. Test environments only.
+  description: Also run the L2 (end-to-end) digital-cash flow. This CREATES test data and moves treasury funds (auto-cleaned on teardown), so use it on test environments only. Off by default; L0 (smoke) and L1 (contract) still run without it.
   type: boolean
   default: false
-  label: Run E2E (creates data)
+  label: Run L2 / End-to-End (creates data)
   group: Sanity Suite
   show_if: sanity.enabled=true
 - variable: sanity.failOnError

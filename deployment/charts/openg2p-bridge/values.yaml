@@ -1,7 +1,9 @@
 global:
-  # Namespace/environment segment that all ingress hostnames below are derived
-  # from (defaults to the 'trial' namespace). Override per environment.
-  namespace: trial
+  # Environment segment that all ingress hostnames below are derived from. Leave
+  # EMPTY to auto-pick the install namespace (`.Release.Namespace`) — the usual
+  # case, so it is not asked in the Rancher form. Only set this to override the
+  # hostname segment when it must differ from the Kubernetes namespace.
+  namespace: ""
 
   postgresqlHost: commons-postgresql
   # Bridge DB naming modeled on NSR: DB/user derived from the release name
@@ -21,21 +23,21 @@ global:
   # Default name of Redis that is installed with this chart
   redisInstallationName: '{{ .Release.Name }}-redis-master'
 
-  g2pBridgeHostname: 'g2p-bridge.{{ .Values.global.namespace }}.openg2p.org'
-  benePortalHostname: 'g2p-bridge-bene-portal.{{ .Values.global.namespace }}.openg2p.org'
+  g2pBridgeHostname: 'g2p-bridge.{{ .Values.global.namespace | default .Release.Namespace }}.openg2p.org'
+  benePortalHostname: 'g2p-bridge-bene-portal.{{ .Values.global.namespace | default .Release.Namespace }}.openg2p.org'
 
   # In-cluster base URL of the G2P Bridge API service (service-to-service calls,
   # e.g. the Example Bank uploading MT940 statements back to the Bridge).
   g2pBridgeApiBaseUrl: 'http://{{ .Release.Name }}-api'
 
   # Example Bank (bundled simulator). Toggle the whole simulator via exampleBank.enabled.
-  exampleBankHostname: 'example-bank.{{ .Values.global.namespace }}.openg2p.org'
+  exampleBankHostname: 'example-bank.{{ .Values.global.namespace | default .Release.Namespace }}.openg2p.org'
   # In-cluster URL the Bridge uses to reach the Example Bank API.
   g2pBridgeExampleBankBaseUrl: http://openg2p-g2p-bridge-example-bank-api
   g2pBrdidgeExampleBankCode: EXAMPLE-BANK
 
   # Keycloak is per-namespace (commons layer in this namespace), same as NSR.
-  keycloakBaseUrl: 'https://keycloak.{{ .Values.global.namespace }}.openg2p.org'
+  keycloakBaseUrl: 'https://keycloak.{{ .Values.global.namespace | default .Release.Namespace }}.openg2p.org'
   keycloakRealm: staff
   keycloakIssuerUrl: '{{ tpl .Values.global.keycloakBaseUrl $ }}/realms/{{ tpl .Values.global.keycloakRealm $ }}'
 
@@ -989,14 +991,17 @@ exampleBankCeleryWorker:
 # sanity.runE2e=true to include the data-creating e2e (test environments only).
 # -----------------------------------------------------------------------------
 sanity:
-  enabled: false
+  # Enabled by default: runs L0 (smoke) + L1 (contract) on each install/upgrade.
+  # These are read-only (no data created). L2 (e2e) is opt-in via runE2e below.
+  enabled: true
 
   image:
     repository: openg2p/openg2p-bridge-sanity
     tag: develop
     pullPolicy: Always
 
-  # false = smoke + contract only (no data). true = full suite incl. e2e.
+  # L2 (end-to-end). false = L0 smoke + L1 contract only (no data). true = also
+  # run L2 e2e, which CREATES test data and moves treasury funds. L0/L1 always run.
   runE2e: false
   # When false (default) the run NEVER fails the install/upgrade — read the report
   # for pass/fail. Set true only if you want a failing sanity run to fail the deploy.
@@ -1011,7 +1016,7 @@ sanity:
   # SPAR mapper PUBLIC ingress (note the doubled /mapper). SPAR is a separate
   # deployment with no variable in this chart, so set it per environment
   # (surfaced in questions.yaml). Defaults to the conventional public host.
-  sparMapperBaseUrl: 'https://spar.{{ .Values.global.namespace }}.openg2p.org/api/mapper/mapper'
+  sparMapperBaseUrl: 'https://spar.{{ .Values.global.namespace | default .Release.Namespace }}.openg2p.org/api/mapper/mapper'
 
   verifyTls: true
   # SPAR BANK strategy id whose construct matches the Bridge deconstruct (chart id 5).
@@ -1044,7 +1049,7 @@ sanity:
       pullPolicy: IfNotPresent
     # Derived from the RELEASE name so two releases in one namespace (e.g.
     # g2p-bridge and g2p-bridge2) don't collide. Override per environment.
-    hostname: '{{ .Release.Name }}-sanity.{{ .Values.global.namespace }}.openg2p.org'
+    hostname: '{{ .Release.Name }}-sanity.{{ .Values.global.namespace | default .Release.Namespace }}.openg2p.org'
     gateway: "internal"
     # Static nginx serving pre-generated report files — it streams from disk and
     # holds almost nothing in memory regardless of report size, so it runs in a

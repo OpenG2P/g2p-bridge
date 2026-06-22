@@ -44,7 +44,7 @@ spec:
           resources: {{- toYaml $s.resources | nindent 12 }}
           env:
             - name: SANITY_NAMESPACE
-              value: {{ .Values.global.namespace | quote }}
+              value: {{ .Values.global.namespace | default .Release.Namespace | quote }}
             - name: SANITY_BRIDGE_BASE_URL
               value: {{ tpl $s.bridgeBaseUrl $ | quote }}
             - name: SANITY_BENE_PORTAL_BASE_URL
