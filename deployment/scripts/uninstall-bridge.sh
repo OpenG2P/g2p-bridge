@@ -307,7 +307,11 @@ fi
 # ========== STEP 3: sweep leftover Secrets & ConfigMaps ==========
 _blue "==> [3/6] Sweep leftover Secrets / ConfigMaps"
 if [[ "$NAMESPACE_EXISTS" == true ]]; then
-  run "kubectl -n '$NAMESPACE' delete secret    -l 'app.kubernetes.io/instance=$RELEASE' --ignore-not-found"
+  # Keep the superset-ro secret (component=superset-readonly): it is intentionally
+  # durable so the read-only password survives uninstall/reinstall and an
+  # already-configured Superset connection does not break. It is dropped only via
+  # the explicit --drop-superset-ro path in step 4 below.
+  run "kubectl -n '$NAMESPACE' delete secret    -l 'app.kubernetes.io/instance=$RELEASE,app.kubernetes.io/component!=superset-readonly' --ignore-not-found"
   run "kubectl -n '$NAMESPACE' delete configmap -l 'app.kubernetes.io/instance=$RELEASE' --ignore-not-found"
 else
   echo "  (skipped — namespace '$NAMESPACE' not present)"
