@@ -5,7 +5,7 @@ Two layers:
 * ``RequestValidation.validate_signature`` — the gate that enforces/skips based on
   ``signature_validation_enabled``.
 * ``JWTSignatureValidator`` end to end — a real partner-signed request flows
-  through the partner-auth validator → ``JWTValidationHelper`` → ``LocalCryptoHelper``
+  through the partner-auth validator → ``JWTValidationHelper`` → ``PyJWTCryptoHelper``
   → local key store, exactly as it does on a live Partner API call (no Keymanager).
 """
 
@@ -19,7 +19,7 @@ from joserfc import jws
 from joserfc.jwk import generate_key
 from openg2p_fastapi_partner_auth.jwt_signature_validator import JWTSignatureValidator
 from openg2p_fastapi_partner_auth.jwt_validation_helper import JWTValidationHelper
-from openg2p_g2p_bridge_models.crypto import LocalCryptoHelper
+from openg2p_g2p_bridge_models.crypto import PyJWTCryptoHelper
 from openg2p_g2p_bridge_models.errors import G2PBridgeStatusReasonCodeEnum, RequestValidationException
 from openg2p_g2p_bridge_partner_api.controllers import DisbursementController
 from openg2p_g2p_bridge_partner_api.services import request_validations
@@ -93,8 +93,8 @@ def _make_request(body_bytes: bytes, signature) -> Request:
 
 
 def _helper_for(tmp_path):
-    """A JWTValidationHelper bound to a LocalCryptoHelper over tmp_path's key store."""
-    local = LocalCryptoHelper(partner_keys_dir=str(tmp_path))
+    """A JWTValidationHelper bound to a PyJWTCryptoHelper over tmp_path's key store."""
+    local = PyJWTCryptoHelper(partner_keys_dir=str(tmp_path))
     helper = JWTValidationHelper()
     helper.crypto_helper = local
     return helper

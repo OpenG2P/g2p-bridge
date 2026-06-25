@@ -19,15 +19,13 @@ import logging
 import os
 import threading
 
-from joserfc.jwk import KeySet
-
 _logger = logging.getLogger("openg2p_g2p_bridge_models.crypto.key_store")
 
 
 class PartnerKeyStore:
     def __init__(self, keys_dir):
         self.keys_dir = keys_dir
-        self._cache = {}  # reference_id -> (mtime, KeySet)
+        self._cache = {}  # reference_id -> (mtime, list[jwk dict])
         self._lock = threading.Lock()
 
     def _path_for(self, reference_id):
@@ -37,8 +35,8 @@ class PartnerKeyStore:
             return None
         return os.path.join(self.keys_dir, f"{reference_id}.json")
 
-    def get_keyset(self, reference_id):
-        """Return the ``KeySet`` for a partner reference id, or None if unknown."""
+    def get_keys(self, reference_id):
+        """Return the partner's JWK dicts (a JWKS ``keys`` list), or None if unknown."""
         if not self.keys_dir:
             return None
         path = self._path_for(reference_id)
@@ -53,10 +51,13 @@ class PartnerKeyStore:
         try:
             with open(path, encoding="utf-8") as handle:
                 jwks = json.load(handle)
-            key_set = KeySet.import_key_set(jwks)
+            keys = jwks.get("keys") if isinstance(jwks, dict) else None
+            if not isinstance(keys, list) or not keys:
+                _logger.error("Partner JWKS for '%s' has no 'keys' array", reference_id)
+                return None
         except Exception:
             _logger.exception("Failed to load partner JWKS for '%s'", reference_id)
             return None
         with self._lock:
-            self._cache[reference_id] = (mtime, key_set)
-        return key_set
+            self._cache[reference_id] = (mtime, keys)
+        return keys

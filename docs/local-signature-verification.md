@@ -24,10 +24,24 @@ related Helm values/questions/env.
 
 ## What replaces it
 
-`LocalCryptoHelper` (in `openg2p_g2p_bridge_models.crypto`) is a drop-in
+`PyJWTCryptoHelper` (in `openg2p_g2p_bridge_models.crypto`) is a drop-in
 replacement for the old `KeymanagerCryptoHelper`. It implements the same
 `verify_jwt` / `create_jwt_token` interface but does the crypto locally with
-[`joserfc`](https://jose.authlib.org/), resolving keys from a local store.
+[`PyJWT`](https://pyjwt.readthedocs.io/) (+ `cryptography`), resolving keys from a
+local store.
+
+> **Relation to the platform `PyJWTCryptoHelper` proposal.** This is the
+> Bridge-local instance of the shared
+> [`PyJWTCryptoHelper`](https://docs.openg2p.org/platform/platform-services/privacy-and-security/pyjwtcryptohelper)
+> design — same library, wire format, canonicalization, interface and
+> fail-closed behavior. It lives in the Bridge for now (changing
+> `openg2p-fastapi-common` would ripple through every product); the plan is to
+> move it into `fastapi-common` `partner_auth` so all products share one
+> implementation, at which point the Bridge just swaps the one-line registration
+> in `app.py`. The Bridge version additionally hardens the design with `kid`-based
+> multi-key rotation, an ES256 default + explicit algorithm allow-list, a
+> configurable signing key, and Secret-volume mounts (not K8s-API reads) — carry
+> these upstream at migration.
 
 | Direction | Operation | Key used | Source |
 | --- | --- | --- | --- |
@@ -230,12 +244,12 @@ path**, which made a network round-trip (`POST /jwtVerify`) plus an OAuth token
 fetch on every request. There are now **no network calls and no external
 dependency** in the hot path.
 
-Measured single-core throughput (Python, `LocalCryptoHelper`):
+Measured single-core throughput (Python, `PyJWTCryptoHelper`):
 
 | Operation | Throughput | Per op |
 | --- | --- | --- |
-| ES256 verify (inbound) | ~12,000 /sec | ~0.085 ms |
-| RS256 verify (inbound) | ~18,000 /sec | ~0.054 ms |
+| ES256 verify (inbound) | ~10,000 /sec | ~0.10 ms |
+| RS256 verify (inbound) | ~11,000 /sec | ~0.09 ms |
 | ES256 sign (outbound) | ~28,000 /sec | ~0.035 ms |
 
 Why this scales to several thousand disbursement requests comfortably:
@@ -279,9 +293,9 @@ scales above.
 
 | Path | What |
 | --- | --- |
-| `core/models/src/openg2p_g2p_bridge_models/crypto/local_crypto_helper.py` | `LocalCryptoHelper` — local verify + sign |
+| `core/models/src/openg2p_g2p_bridge_models/crypto/pyjwt_crypto_helper.py` | `PyJWTCryptoHelper` — local verify + sign (PyJWT) |
 | `core/models/src/openg2p_g2p_bridge_models/crypto/key_store.py` | `PartnerKeyStore` — JWKS-per-partner file store |
 | `core/models/src/openg2p_g2p_bridge_models/crypto/constants.py` | Allowed-algorithm policy |
-| `core/partner-api/.../app.py` | Registers `LocalCryptoHelper` for inbound verify |
+| `core/partner-api/.../app.py` | Registers `PyJWTCryptoHelper` for inbound verify |
 | `extensions/mapper-connectors/.../app.py` | Registers the named signing helper for SPAR |
-| `core/partner-api/tests/test_local_crypto_helper.py` | Unit tests |
+| `core/partner-api/tests/test_pyjwt_crypto_helper.py` | Unit tests |

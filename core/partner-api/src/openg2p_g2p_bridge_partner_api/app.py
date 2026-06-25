@@ -7,7 +7,7 @@ from .config import Settings
 _config = Settings.get_config()
 
 from openg2p_fastapi_common.app import Initializer as BaseInitializer
-from openg2p_g2p_bridge_models.crypto import LocalCryptoHelper
+from openg2p_g2p_bridge_models.crypto import PyJWTCryptoHelper
 from openg2p_g2p_bridge_models.models import (
     AccountStatement,
     AccountStatementLob,
@@ -54,7 +54,7 @@ class Initializer(BaseInitializer):
         AccountStatementService()
         DisbursementStatusService()
         DisbursementEnvelopeStatusService()
-        LocalCryptoHelper(
+        PyJWTCryptoHelper(
             partner_keys_dir=_config.partner_keys_dir,
             allowed_algorithms=[
                 alg.strip() for alg in _config.signature_allowed_algorithms.split(",") if alg.strip()

@@ -1,21 +1,25 @@
-"""Local (Keymanager-free) JWS sign/verify helper.
+"""Local (Keymanager-free) JWS sign/verify helper, built on PyJWT.
 
 Drop-in replacement for ``openg2p_fastapi_common.utils.crypto.KeymanagerCryptoHelper``:
-it implements the same ``verify_jwt`` / ``create_jwt_token`` interface but does all
-crypto in-process with ``joserfc``, resolving keys from a local store instead of
-calling the remote Keymanager service.
+same ``verify_jwt`` / ``create_jwt_token`` interface, but all crypto is done
+in-process with **PyJWT** (+ ``cryptography``), resolving keys from a local store
+instead of calling the remote Keymanager service.
 
-* Inbound ``verify_jwt`` — verifies a detached JWS (``header..signature``) that a
-  partner sends in the ``Signature`` header, against the partner's public key looked
-  up by ``km_ref_id`` (e.g. ``PARTNER_<MNEMONIC>``).
+This is the Bridge-local instance of the shared ``PyJWTCryptoHelper`` design
+(see the OpenG2P platform docs). It is kept here for now; the strategic plan is to
+move it into ``openg2p-fastapi-common`` ``partner_auth`` so every product shares
+one implementation — at which point the Bridge swaps the one-line registration in
+``app.py``. See ``docs/local-signature-verification.md``.
+
+* Inbound ``verify_jwt`` — verifies a detached JWS (``header..signature``) sent by
+  a partner in the ``Signature`` header, against the partner's public key looked up
+  by ``km_ref_id`` (e.g. ``PARTNER_<MNEMONIC>``).
 * Outbound ``create_jwt_token`` — signs a payload with the Bridge's own private key
-  and returns a detached JWS, for calls to downstream services (e.g. SPAR) that
-  require a signature.
+  and returns a detached JWS, for downstream services (e.g. SPAR).
 
-The signing input matches the established wire contract:
-``base64url(protected_header) + "." + base64url(canonical_json(body))`` where
-canonical JSON is compact, UTF-8, sort-keys (``orjson`` ``OPT_SORT_KEYS``) — i.e.
-exactly what the Keymanager path produced, so partners need no change.
+Signing input matches the established wire contract:
+``base64url(protected_header)`` + ``.`` + ``base64url(canonical_json(body))`` where
+canonical JSON is compact, UTF-8, sort-keys (``orjson`` ``OPT_SORT_KEYS``).
 """
 
 import base64
@@ -23,8 +27,7 @@ import json
 import logging
 
 import orjson
-from joserfc import jws
-from joserfc.jwk import import_key
+from jwt import PyJWK, PyJWS
 from openg2p_fastapi_common.utils.crypto import CryptoHelper
 
 from .constants import (
@@ -34,10 +37,10 @@ from .constants import (
 )
 from .key_store import PartnerKeyStore
 
-_logger = logging.getLogger("openg2p_g2p_bridge_models.crypto.local_crypto_helper")
+_logger = logging.getLogger("openg2p_g2p_bridge_models.crypto.pyjwt_crypto_helper")
 
 
-class LocalCryptoHelper(CryptoHelper):
+class PyJWTCryptoHelper(CryptoHelper):
     def __init__(
         self,
         *,
@@ -55,7 +58,9 @@ class LocalCryptoHelper(CryptoHelper):
         self._signing_key_path = signing_key_path
         self._signing_key_kid = signing_key_kid
         self._signing_algorithm = signing_algorithm
-        self._signing_key = None  # lazy-loaded JWK
+        self._signing_key = None  # lazy-loaded cryptography private key
+        self._signing_kid = None  # kid read from the signing JWK on load
+        self._jws = PyJWS()
 
     async def aclose(self):
         """No remote client to close; kept for interface parity."""
@@ -83,14 +88,16 @@ class LocalCryptoHelper(CryptoHelper):
         if self._partner_key_store is None:
             _logger.error("Partner key store not configured; cannot verify signature")
             return False
-        key_set = self._partner_key_store.get_keyset(km_ref_id)
-        if key_set is None:
+        keys = self._partner_key_store.get_keys(km_ref_id)
+        if not keys:
             _logger.error("No registered keys for partner '%s'", km_ref_id)
             return False
-        if not self._algorithm_matches_key(key_set, header, alg):
+
+        candidates = self._candidate_keys(keys, header, alg)
+        if not candidates:
+            _logger.error("No registered key matches kid/alg for partner '%s'", km_ref_id)
             return False
 
-        # Reconstruct the signed content: header . base64url(canonical(payload)) . signature
         if payload is None:
             if not part2:
                 _logger.error("Detached JWS supplied without a payload to verify against")
@@ -99,18 +106,22 @@ class LocalCryptoHelper(CryptoHelper):
         else:
             verifiable = f"{part1}.{self._b64u(self._canonical(payload))}.{part3}"
 
-        try:
-            jws.deserialize_compact(verifiable, key_set, algorithms=[alg])
-        except Exception:
-            _logger.exception("JWS signature verification failed for partner '%s'", km_ref_id)
-            return False
-        _logger.info(
-            "JWS signature verified for partner '%s' (alg=%s, kid=%s)",
-            km_ref_id,
-            alg,
-            header.get("kid"),
-        )
-        return True
+        for jwk in candidates:
+            try:
+                key = PyJWK.from_dict(jwk).key
+                self._jws.decode(verifiable, key, algorithms=[alg])
+            except Exception:
+                continue
+            _logger.info(
+                "JWS signature verified for partner '%s' (alg=%s, kid=%s)",
+                km_ref_id,
+                alg,
+                header.get("kid"),
+            )
+            return True
+
+        _logger.error("JWS signature verification failed for partner '%s'", km_ref_id)
+        return False
 
     # ------------------------------- sign (outbound) ------------------------------
 
@@ -119,11 +130,11 @@ class LocalCryptoHelper(CryptoHelper):
         alg = kwargs.get("algorithm") or self._signing_algorithm
         if not self._is_algorithm_allowed(alg):
             raise ValueError(f"Signing algorithm '{alg}' is not in the allowed set")
-        protected = {"alg": alg}
-        kid = self._signing_key_kid or getattr(key, "kid", None)
+        headers = {}
+        kid = self._signing_key_kid or self._signing_kid
         if kid:
-            protected["kid"] = kid
-        full = jws.serialize_compact(protected, self._canonical(payload), key, algorithms=[alg])
+            headers["kid"] = kid
+        full = self._jws.encode(self._canonical(payload), key, algorithm=alg, headers=headers)
         part1, _part2, part3 = full.split(".")
         if include_payload:
             return full
@@ -137,34 +148,27 @@ class LocalCryptoHelper(CryptoHelper):
         if not self._signing_key_path:
             raise ValueError("Signing key path not configured; cannot create JWS")
         with open(self._signing_key_path, encoding="utf-8") as handle:
-            jwk = json.load(handle)
-        self._signing_key = import_key(jwk)
+            jwk = orjson.loads(handle.read())
+        self._signing_kid = jwk.get("kid")
+        self._signing_key = PyJWK.from_dict(jwk).key
         return self._signing_key
+
+    def _candidate_keys(self, keys, header, alg):
+        """Keys eligible to verify this header: matching kid (if present) and a
+        registered alg that is consistent with the header alg."""
+        kid = header.get("kid")
+        candidates = []
+        for jwk in keys:
+            if kid and jwk.get("kid") and jwk.get("kid") != kid:
+                continue
+            key_alg = jwk.get("alg")
+            if key_alg and key_alg != alg:
+                continue
+            candidates.append(jwk)
+        return candidates
 
     def _is_algorithm_allowed(self, alg):
         return bool(alg) and not is_forbidden_algorithm(alg) and alg in self.allowed_algorithms
-
-    def _algorithm_matches_key(self, key_set, header, alg):
-        kid = header.get("kid")
-        if not kid:
-            return True  # alg is already pinned via algorithms=[alg] on verify
-        try:
-            key = key_set.get_by_kid(kid)
-        except Exception:
-            _logger.error("No key with kid '%s' for this partner", kid)
-            return False
-        key_alg = self._key_alg(key)
-        if key_alg and key_alg != alg:
-            _logger.error("Header alg '%s' does not match registered key alg '%s'", alg, key_alg)
-            return False
-        return True
-
-    @staticmethod
-    def _key_alg(key):
-        try:
-            return key.as_dict().get("alg")
-        except Exception:
-            return None
 
     @staticmethod
     def _decode_header(part1):

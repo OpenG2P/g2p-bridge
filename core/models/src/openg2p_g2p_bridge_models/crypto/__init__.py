@@ -4,10 +4,10 @@ from .constants import (
     is_forbidden_algorithm,
 )
 from .key_store import PartnerKeyStore
-from .local_crypto_helper import LocalCryptoHelper
+from .pyjwt_crypto_helper import PyJWTCryptoHelper
 
 __all__ = [
-    "LocalCryptoHelper",
+    "PyJWTCryptoHelper",
     "PartnerKeyStore",
     "DEFAULT_ALLOWED_ALGORITHMS",
     "DEFAULT_SIGNING_ALGORITHM",
