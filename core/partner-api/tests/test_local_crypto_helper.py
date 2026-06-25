@@ -114,6 +114,39 @@ async def test_verify_supports_key_rotation_by_kid(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_verify_rejects_signature_from_different_key(tmp_path):
+    # Forgery: attacker uses the onboarded partner's reference id AND kid, but
+    # signs with their own private key. Must be rejected.
+    onboarded = _gen_ec("psp-1")
+    attacker = _gen_ec("psp-1")  # same kid, different key material
+    _write_jwks(tmp_path, "PARTNER_MY_PSP", [onboarded.as_dict(private=False)])
+    helper = LocalCryptoHelper(partner_keys_dir=str(tmp_path))
+
+    forged = _partner_sign(BODY, attacker, "ES256", "psp-1")
+    assert await helper.verify_jwt(forged, payload=BODY, km_ref_id="PARTNER_MY_PSP") is False
+
+
+@pytest.mark.asyncio
+async def test_verify_rejects_malformed_and_empty_signatures(tmp_path):
+    key = _gen_ec("psp-1")
+    _write_jwks(tmp_path, "PARTNER_MY_PSP", [key.as_dict(private=False)])
+    helper = LocalCryptoHelper(partner_keys_dir=str(tmp_path))
+    for bad in ["", "not-a-jws", "a.b", "a.b.c.d", "...", "x..y"]:
+        assert await helper.verify_jwt(bad, payload=BODY, km_ref_id="PARTNER_MY_PSP") is False
+
+
+@pytest.mark.asyncio
+async def test_verify_rejects_path_traversal_reference_id(tmp_path):
+    key = _gen_ec("psp-1")
+    _write_jwks(tmp_path, "PARTNER_MY_PSP", [key.as_dict(private=False)])
+    helper = LocalCryptoHelper(partner_keys_dir=str(tmp_path))
+    sig = _partner_sign(BODY, key, "ES256", "psp-1")
+    # A reference id that tries to escape the key dir must resolve to no key.
+    for ref in ["PARTNER_../../ETC", "PARTNER_/ABS", "..", "PARTNER_A/B"]:
+        assert await helper.verify_jwt(sig, payload=BODY, km_ref_id=ref) is False
+
+
+@pytest.mark.asyncio
 async def test_verify_returns_false_without_key_store():
     helper = LocalCryptoHelper()  # no partner_keys_dir configured
     key = _gen_ec("psp-1")

@@ -97,10 +97,15 @@ class DisbursementController(BaseController):
                 await self.disbursement_service.cancel_disbursements(disbursement_request)
             )
         except RequestValidationException as e:
+            # A request-validation failure (e.g. invalid/missing JWT signature) has
+            # no per-disbursement results — RequestValidationException carries only a
+            # code. Pass [] (as create_disbursements does); referencing a
+            # non-existent e.disbursement_payloads here would raise and surface as a
+            # misleading HTTP 500 instead of a clean rjct.* error envelope.
             _logger.error("Error validating request")
             error_response: DisbursementResponse = (
                 await self.disbursement_service.construct_disbursement_error_response(
-                    disbursement_request, e.code, e.disbursement_payloads
+                    disbursement_request, e.code, []
                 )
             )
             return error_response
