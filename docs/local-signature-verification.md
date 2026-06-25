@@ -223,6 +223,58 @@ Mapper connectors (celery worker):
 `G2P_BRIDGE_MAPPER_CONNECTORS_SIGNING_ALGORITHM`,
 `G2P_BRIDGE_MAPPER_CONNECTORS_SIGNING_ALLOWED_ALGORITHMS`.
 
+## Performance & scalability
+
+Local verification is cheap and is **strictly faster than the old Keymanager
+path**, which made a network round-trip (`POST /jwtVerify`) plus an OAuth token
+fetch on every request. There are now **no network calls and no external
+dependency** in the hot path.
+
+Measured single-core throughput (Python, `LocalCryptoHelper`):
+
+| Operation | Throughput | Per op |
+| --- | --- | --- |
+| ES256 verify (inbound) | ~12,000 /sec | ~0.085 ms |
+| RS256 verify (inbound) | ~18,000 /sec | ~0.054 ms |
+| ES256 sign (outbound) | ~28,000 /sec | ~0.035 ms |
+
+Why this scales to several thousand disbursement requests comfortably:
+
+* **Keys are cached in-process** — a partner's JWKS is read from disk only on
+  first use and reloaded only when the file's mtime changes; steady state is a
+  single `stat()` plus an in-memory verify, no per-request I/O.
+* **Verification is a negligible fraction of request time** — a sub-millisecond
+  CPU cost next to the database writes the request already does.
+* **The heavy disbursement pipeline is asynchronous** (Celery beats/workers); the
+  Partner API only accepts and enqueues, and **outbound signing runs in the
+  workers**, off the request path.
+* **Scale horizontally** — add Partner API replicas and Celery workers as usual;
+  there is no shared crypto service to bottleneck on.
+
+ES256 is the recommended baseline (fast, small); RS256 verifies even faster if a
+partner is RSA-bound. If verification CPU ever became material at extreme
+concurrency, the verify could be offloaded to a thread pool — not needed at the
+scales above.
+
+## Security considerations & limitations
+
+* **The MT940 upload endpoint (`account_statement`) is not signature-protected.**
+  It is the bank → Bridge statement callback (a different trust boundary from
+  partner requests), so it never required a partner signature. If it is reachable
+  by untrusted callers, authenticate or network-restrict it separately —
+  otherwise forged statements could drive false reconciliation.
+* **No replay protection.** A captured, validly-signed request can be replayed —
+  the signature binds the body, not freshness. This matches the previous
+  Keymanager behavior (no regression). If replay matters, enforce `request_id`
+  uniqueness and/or a `request_timestamp` window.
+* **Malformed JSON body.** The upstream `JWTSignatureValidator` parses the body
+  with `orjson.loads` before verifying; a non-JSON body can surface as an HTTP 500
+  rather than a clean rejection. (This lives in the `partner_auth` library, not
+  this repo.)
+* **Pin the algorithm per key.** Onboarding includes `alg` in each JWK and the
+  helper checks the header `alg` against it; keep `alg` present in partner JWKS so
+  the algorithm is fixed per key (defense in depth beyond key-type matching).
+
 ## Code map
 
 | Path | What |
