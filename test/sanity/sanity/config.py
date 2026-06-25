@@ -15,6 +15,12 @@ import yaml
 
 _DEFAULT_BASE_DOMAIN = "openg2p.org"
 
+# Committed TEST-ONLY private key used to sign Partner API requests when the
+# target Bridge enforces signature validation (the trial default). Resolves to
+# <repo>/test/keys/test-partner.key.json for a local run; overridden in-cluster
+# via SANITY_SIGNING_KEY_PATH (the chart mounts it from a Secret).
+_DEFAULT_SIGNING_KEY = str(Path(__file__).resolve().parents[2] / "keys" / "test-partner.key.json")
+
 
 @dataclass
 class Config:
@@ -64,7 +70,13 @@ class Config:
     disbursement_cycle_id: int = 1
     disbursement_frequency: str = "Monthly"
 
-    signature_validation_enabled: bool = False
+    # Partner API request signing. On by default so the suite works against a
+    # Bridge that enforces signature validation (the trial profile). Set
+    # sign_requests=false only when targeting a Bridge with validation off.
+    sign_requests: bool = True
+    signing_key_path: str = _DEFAULT_SIGNING_KEY
+    signing_key_kid: str = "test-partner-2026"
+    signing_algorithm: str = "ES256"
 
     # Bene-Portal API tests. Disabled for now — the bene-portal enforces OIDC auth
     # and the suite does not yet authenticate (calls return 401). Enable once the

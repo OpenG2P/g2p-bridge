@@ -76,6 +76,14 @@ global:
   g2pBridgeSigningKeyKid: ""
   g2pBridgeSigningAlgorithm: ES256
 
+  # TEST/DEMO trial profile. When true (the default for the bundled trial
+  # install), the chart onboards a well-known TEST-ONLY partner key (see the
+  # testPartner block below) AND turns signature validation ON, so the bundled
+  # sanity suite and the Postman walkthrough exercise the signed Partner API out
+  # of the box. The test private key is committed in the repo, so this MUST be set
+  # false for any real deployment (turn it off together with exampleBank).
+  testPartnerEnabled: true
+
   PBMSDBHostname: commons-postgresql
   PBMSDB: pbms_db
   PBMSDBUser: pbms_db_user
@@ -128,6 +136,20 @@ global:
   # because the Example Bank has no account-creation API. No effect when the
   # Example Bank is not deployed.
   seedTreasuryAccount: true
+
+# TEST/DEMO ONLY — gated by global.testPartnerEnabled. A committed, well-known
+# keypair (mirrors test/keys/) onboarded so the sanity suite and the Postman
+# walkthrough can sign Partner API requests in the trial install. The private key
+# is public knowledge (it is in the repo), so this is NEVER safe in production —
+# set global.testPartnerEnabled=false there. See test/keys/README.md.
+testPartner:
+  # Public key is onboarded under PARTNER_<MNEMONIC>.json for each mnemonic:
+  # TEST_SANITY (sanity suite) and TRAINING (Postman walkthrough).
+  mnemonics:
+    - TEST_SANITY
+    - TRAINING
+  publicJwk: '{"crv":"P-256","x":"d4zoYTTSHJOmqUSMcqL8bkLDrHtRIDXKxHHf91rRrSo","y":"ena--_HuHYqMLROH2c7jViK1C6xUSTbmRXRhVx-suxI","kid":"test-partner-2026","alg":"ES256","use":"sig","kty":"EC"}'
+  privateJwk: '{"crv":"P-256","x":"d4zoYTTSHJOmqUSMcqL8bkLDrHtRIDXKxHHf91rRrSo","y":"ena--_HuHYqMLROH2c7jViK1C6xUSTbmRXRhVx-suxI","d":"Mtjj07k1PYjRcs9asSnrCGBOkWVD0ARAFDfsxqERLLQ","kid":"test-partner-2026","alg":"ES256","use":"sig","kty":"EC"}'
 
 postgres-init:
   enabled: true
@@ -232,8 +254,9 @@ g2pBridgeApi:
     G2P_BRIDGE_PORT: '{{ .Values.containerPort }}'
     G2P_BRIDGE_OPENAPI_ROOT_PATH: '{{ .Values.openapiRootPath }}'
 
-    # Inbound partner JWS signature verification (local, Keymanager-free).
-    G2P_BRIDGE_SIGNATURE_VALIDATION_ENABLED: '{{ .Values.global.g2pBridgeSignatureValidationEnabled }}'
+    # Inbound partner JWS signature verification (local, Keymanager-free). On when
+    # explicitly enabled OR when the trial test partner is onboarded.
+    G2P_BRIDGE_SIGNATURE_VALIDATION_ENABLED: '{{ or .Values.global.g2pBridgeSignatureValidationEnabled .Values.global.testPartnerEnabled }}'
     G2P_BRIDGE_PARTNER_KEYS_DIR: '{{ .Values.global.g2pBridgePartnerKeysDir }}'
     G2P_BRIDGE_SIGNATURE_ALLOWED_ALGORITHMS: '{{ .Values.global.g2pBridgeSignatureAllowedAlgorithms }}'
   envVarsFrom:

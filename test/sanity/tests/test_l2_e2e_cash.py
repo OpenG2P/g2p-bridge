@@ -42,8 +42,8 @@ def _field(body, name):
 def cash_flow(config, bridge, example_bank, seeded_links, run_ns):
     if not config.run_e2e:
         pytest.skip("run_e2e disabled in config")
-    if config.signature_validation_enabled:
-        pytest.skip("signature validation enabled — write flow needs signed requests")
+    if bridge.signer is None:
+        pytest.skip("request signing unavailable — signed write flow needs the test key")
 
     n = config.e2e_num_beneficiaries
     amount = config.e2e_amount_per_beneficiary

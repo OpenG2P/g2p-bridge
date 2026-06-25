@@ -34,10 +34,10 @@ replacement for the old `KeymanagerCryptoHelper`. It implements the same
 | **Inbound** (partner → Bridge) | `verify_jwt` | partner **public** key | partner key store (JWKS files) |
 | **Outbound** (Bridge → SPAR) | `create_jwt_token` | Bridge **private** key | signing-key Secret |
 
-Both directions are **off by default**. Turn inbound verification on with
-`global.g2pBridgeSignatureValidationEnabled=true` once partners are onboarded.
-Outbound signing turns on only when SPAR enforces signatures
-(`...SPAR_MAPPER_API_SIGN_ENABLED=true`).
+Inbound verification is **on by default in the bundled trial/demo install** (via
+the test partner — see below) and **off for production** until you onboard real
+partners (`global.g2pBridgeSignatureValidationEnabled=true`). Outbound signing
+turns on only when SPAR enforces signatures (`...SPAR_MAPPER_API_SIGN_ENABLED=true`).
 
 ## The signing contract (unchanged — no partner-facing change)
 
@@ -168,6 +168,33 @@ requests too. The Bridge signs locally with its **own private key**:
 
 If the Bridge is SPAR's only caller and SPAR has verification off, outbound
 signing can stay off.
+
+## Testing with auth on — the trial profile
+
+The bundled trial install (Example Bank on) exercises the **signed** Partner API
+out of the box. A committed **TEST-ONLY** keypair (`test/keys/`, also mirrored
+inline in the chart under `testPartner`) drives this:
+
+* `global.testPartnerEnabled` (default **true**) makes the chart **onboard** the
+  test partner's public key (as `PARTNER_TEST_SANITY` and `PARTNER_TRAINING`) and
+  **turn signature validation on**.
+* The **sanity suite** signs every Partner API request with the test private key
+  by default (`sign_requests=true`); the chart mounts that key into the sanity
+  Job. Locally it reads `test/keys/test-partner.key.json`.
+* The **Postman walkthrough** signs via a collection pre-request (loads
+  `jsrsasign` from a pinned CDN, signs with the test key in `signing_private_jwk`).
+  Set `sign_requests=false` in the environment to disable.
+
+⚠️ **The test private key is committed to the repo.** Any install that onboards
+it can be impersonated. For production: set **`global.testPartnerEnabled=false`**
+(do this together with disabling the Example Bank), onboard real partner keys, and
+choose `g2pBridgeSignatureValidationEnabled` explicitly. See
+[`test/keys/README.md`](../test/keys/README.md).
+
+> The Postman pre-request uses ES256 via `jsrsasign` in the Postman sandbox. The
+> signing logic is validated against the Bridge verifier, but the Postman-runtime
+> plumbing (CDN load + header injection) should be smoke-tested in Postman/newman
+> against a live trial before relying on it.
 
 ## Configuration reference
 

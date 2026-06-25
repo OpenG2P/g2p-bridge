@@ -20,6 +20,7 @@ from sanity.clients import (  # noqa: E402
 )
 from sanity.config import load_config  # noqa: E402
 from sanity.naming import RunNamespace  # noqa: E402
+from sanity.signing import RequestSigner  # noqa: E402
 
 _logger = logging.getLogger("sanity")
 
@@ -78,11 +79,20 @@ def run_ns(config) -> RunNamespace:
 # --------------------------------------------------------------------------- #
 @pytest.fixture(scope="session")
 def bridge(config):
+    signer = None
+    if config.sign_requests:
+        candidate = RequestSigner(
+            config.signing_key_path,
+            kid=config.signing_key_kid,
+            algorithm=config.signing_algorithm,
+        )
+        signer = candidate if candidate.available else None
     c = BridgeClient(
         config.bridge_base_url,
         verify_tls=config.verify_tls,
         timeout=config.request_timeout_seconds,
         sender=config.test_prefix,
+        signer=signer,
     )
     yield c
     c.close()

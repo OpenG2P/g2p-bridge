@@ -156,12 +156,15 @@ def item(name, method, url_raw, *, body=None, pre=None, test=None, desc=None) ->
 # --------------------------------------------------------------------------- #
 # Reusable G2PConnect request_header (dynamic id + timestamp via Postman vars).
 # --------------------------------------------------------------------------- #
+# request_id / request_timestamp are set by the collection pre-request script (not
+# the {{$guid}}/{{$isoTimestamp}} dynamic vars) so the signed bytes match exactly
+# what Postman sends — the signature is computed over the resolved body.
 HEADER = """
   "request_header": {
     "sender_app_mnemonic": "{{sender_app}}",
     "sender_app_url": "{{sender_app_url}}",
-    "request_id": "{{$guid}}",
-    "request_timestamp": "{{$isoTimestamp}}",
+    "request_id": "{{request_id}}",
+    "request_timestamp": "{{request_timestamp}}",
     "instance_id": null
   }"""
 
@@ -685,9 +688,71 @@ F6_CLEANUP = {
 
 
 # --------------------------------------------------------------------------- #
+# Collection-level pre-request: sign Partner API requests (TEST/DEMO).
+#
+# Signs the request body as a detached JWS in the "Signature" header, matching the
+# Bridge's local verification (signing input = base64url(header) + "." +
+# base64url(canonical_json(body)), canonical = sorted-keys compact JSON). Only
+# requests to {{bridge_base_url}} are signed. Uses the committed TEST-ONLY key in
+# {{signing_private_jwk}} — never a production key. jsrsasign is loaded once from a
+# pinned CDN (needs internet) and cached in a collection variable.
+# --------------------------------------------------------------------------- #
+SIGN_PREREQUEST = r"""
+// Deterministic request id + timestamp, referenced by the body templates, so the
+// signed bytes equal what Postman sends.
+pm.collectionVariables.set('request_id', pm.variables.replaceIn('{{$guid}}'));
+pm.collectionVariables.set('request_timestamp', new Date().toISOString());
+
+if (String(pm.variables.get('sign_requests')) !== 'true') return;
+var raw = pm.request.body && pm.request.body.raw;
+if (!raw) return;
+var reqUrl = pm.variables.replaceIn(pm.request.url.toString());
+var bridgeBase = pm.variables.replaceIn('{{bridge_base_url}}');
+if (reqUrl.indexOf(bridgeBase) !== 0) return; // sign only Bridge Partner API calls
+
+function canonical(o) {
+  if (Array.isArray(o)) return '[' + o.map(canonical).join(',') + ']';
+  if (o && typeof o === 'object') {
+    return '{' + Object.keys(o).sort().map(function (k) {
+      return JSON.stringify(k) + ':' + canonical(o[k]);
+    }).join(',') + '}';
+  }
+  return JSON.stringify(o);
+}
+
+function doSign() {
+  var b64u = function (s) { return hextob64u(rstrtohex(s)); };
+  var body = JSON.parse(pm.variables.replaceIn(raw));
+  var jwk = JSON.parse(pm.variables.get('signing_private_jwk'));
+  var key = KEYUTIL.getKey(jwk);
+  var header = { alg: 'ES256', kid: pm.variables.get('signing_kid') || jwk.kid };
+  var p1 = b64u(JSON.stringify(header));
+  var p2 = b64u(canonical(body));
+  var sig = new KJUR.crypto.Signature({ alg: 'SHA256withECDSA' });
+  sig.init(key); sig.updateString(p1 + '.' + p2);
+  var p3 = hextob64u(KJUR.crypto.ECDSA.asn1SigToConcatSig(sig.sign()));
+  pm.request.headers.upsert({ key: 'Signature', value: p1 + '..' + p3 });
+}
+
+var cached = pm.collectionVariables.get('_jsrsasign_src');
+if (cached) { eval(cached); doSign(); return; }
+return new Promise(function (resolve) {
+  pm.sendRequest(pm.variables.get('jsrsasign_url'), function (err, res) {
+    if (err || !res) { console.log('jsrsasign load failed; sending unsigned:', err); return resolve(); }
+    var src = res.text();
+    pm.collectionVariables.set('_jsrsasign_src', src);
+    try { eval(src); doSign(); } catch (e) { console.log('signing error:', e); }
+    resolve();
+  });
+});
+"""
+
+
+# --------------------------------------------------------------------------- #
 # Collection + environment assembly.
 # --------------------------------------------------------------------------- #
 COLLECTION = {
+    "event": [_event("prerequest", SIGN_PREREQUEST)],
     "info": {
         "name": "G2P Bridge - API Walkthrough",
         "description": (
@@ -712,6 +777,10 @@ COLLECTION = {
         {"key": "envelope_id", "value": ""},
         {"key": "created_disbursement_ids", "value": "[]"},
         {"key": "disbursements_accum", "value": "[]"},
+        # Set per-request by the signing pre-request; cached jsrsasign source.
+        {"key": "request_id", "value": ""},
+        {"key": "request_timestamp", "value": ""},
+        {"key": "_jsrsasign_src", "value": ""},
     ],
 }
 
@@ -726,6 +795,21 @@ ENV_VARS = [
     ),
     ("sender_app", "TRAINING"),
     ("sender_app_url", "http://training.local"),
+    # --- Request signing (TEST/DEMO; trial Bridge enforces signature validation) ---
+    # Sign Partner API requests with the committed TEST-ONLY key (mirrors
+    # test/keys/test-partner.key.json, onboarded as PARTNER_TRAINING). Set
+    # sign_requests=false when targeting a Bridge with validation off. NEVER a
+    # production key.
+    ("sign_requests", "true"),
+    ("signing_kid", "test-partner-2026"),
+    (
+        "signing_private_jwk",
+        '{"crv":"P-256","x":"d4zoYTTSHJOmqUSMcqL8bkLDrHtRIDXKxHHf91rRrSo",'
+        '"y":"ena--_HuHYqMLROH2c7jViK1C6xUSTbmRXRhVx-suxI",'
+        '"d":"Mtjj07k1PYjRcs9asSnrCGBOkWVD0ARAFDfsxqERLLQ",'
+        '"kid":"test-partner-2026","alg":"ES256","use":"sig","kty":"EC"}',
+    ),
+    ("jsrsasign_url", "https://cdnjs.cloudflare.com/ajax/libs/jsrsasign/11.1.0/jsrsasign-all-min.js"),
     ("spar_strategy_id", "5"),
     ("treasury_account", "SPONSOR0001"),
     ("currency", "USD"),

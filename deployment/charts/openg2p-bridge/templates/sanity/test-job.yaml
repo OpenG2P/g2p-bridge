@@ -26,20 +26,34 @@ spec:
       {{- with .Values.global.imagePullSecrets }}
       imagePullSecrets: {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- if $s.viewer.enabled }}
+      {{- if or $s.viewer.enabled .Values.global.testPartnerEnabled }}
       volumes:
+        {{- if $s.viewer.enabled }}
         - name: results
           persistentVolumeClaim:
             claimName: {{ .Release.Name }}-sanity-results
+        {{- end }}
+        {{- if .Values.global.testPartnerEnabled }}
+        - name: signing-key
+          secret:
+            secretName: {{ .Release.Name }}-test-partner-signing
+        {{- end }}
       {{- end }}
       containers:
         - name: sanity
           image: "{{ $s.image.repository }}:{{ $s.image.tag }}"
           imagePullPolicy: {{ $s.image.pullPolicy }}
-          {{- if $s.viewer.enabled }}
+          {{- if or $s.viewer.enabled .Values.global.testPartnerEnabled }}
           volumeMounts:
+            {{- if $s.viewer.enabled }}
             - name: results
               mountPath: /results
+            {{- end }}
+            {{- if .Values.global.testPartnerEnabled }}
+            - name: signing-key
+              mountPath: /etc/sanity/signing
+              readOnly: true
+            {{- end }}
           {{- end }}
           resources: {{- toYaml $s.resources | nindent 12 }}
           env:
@@ -71,9 +85,14 @@ spec:
               value: {{ $s.failOnError | quote }}
             - name: SANITY_BENE_PORTAL_ENABLED
               value: {{ $s.benePortalEnabled | quote }}
-            # If inbound signature validation is on, the write tests self-skip.
-            - name: SANITY_SIGNATURE_VALIDATION_ENABLED
-              value: {{ .Values.global.g2pBridgeSignatureValidationEnabled | quote }}
+            # Sign Partner API requests when signature validation is on (explicitly
+            # or via the trial test partner). The test private key is mounted below.
+            - name: SANITY_SIGN_REQUESTS
+              value: {{ or .Values.global.g2pBridgeSignatureValidationEnabled .Values.global.testPartnerEnabled | quote }}
+            {{- if .Values.global.testPartnerEnabled }}
+            - name: SANITY_SIGNING_KEY_PATH
+              value: "/etc/sanity/signing/test-partner.key.json"
+            {{- end }}
             - name: SANITY_CLEANUP_ON_TEARDOWN
               value: "true"
             - name: SANITY_RESULTS_DIR

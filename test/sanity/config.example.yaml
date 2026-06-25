@@ -72,10 +72,14 @@ write_results: true
 results_dir: ""                # blank = <suite>/results
 
 # --- Auth ----------------------------------------------------------------------
-# The sanity profile assumes inbound partner signature validation is OFF
-# (global.g2pBridgeSignatureValidationEnabled=false). If you turn it on, signed
-# requests are required and the write tests will be skipped.
-signature_validation_enabled: false
+# Partner API requests are SIGNED by default (the trial profile enables signature
+# validation). The suite signs with the committed TEST-ONLY key; the trial install
+# onboards its public key. Point signing_key_path elsewhere to use your own key,
+# or set sign_requests=false when targeting a Bridge with validation off.
+sign_requests: true
+# signing_key_path: /path/to/test-partner.key.json   # default: <repo>/test/keys/test-partner.key.json
+signing_key_kid: test-partner-2026
+signing_algorithm: ES256
 
 # Bene-Portal API tests. Off for now — the bene-portal enforces OIDC auth and the
 # suite does not yet authenticate (calls 401). Enable once token auth is added.

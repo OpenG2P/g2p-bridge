@@ -25,6 +25,7 @@ class _Base:
         verify_tls: bool,
         timeout: int,
         sender: str = "TEST_SANITY",
+        signer=None,
     ):
         self.base_url = (base_url or "").rstrip("/")
         if not self.base_url.startswith(("http://", "https://")):
@@ -36,6 +37,9 @@ class _Base:
                 "not an in-cluster service name."
             )
         self.sender = sender
+        # Optional request signer (detached JWS in the Signature header). Set when
+        # the target enforces partner signature validation (the trial default).
+        self.signer = signer
         self._http = httpx.Client(verify=verify_tls, timeout=timeout)
 
     def close(self) -> None:
@@ -52,7 +56,13 @@ class _Base:
         return self._http.get(self.base_url + path)
 
     def post_json(self, path: str, body: Any) -> tuple[int, Any]:
-        r = self._http.post(self.base_url + path, json=body)
+        headers = None
+        if self.signer is not None:
+            try:
+                headers = {"Signature": self.signer.sign(body)}
+            except Exception:
+                _logger.exception("Failed to sign request; sending unsigned")
+        r = self._http.post(self.base_url + path, json=body, headers=headers)
         return r.status_code, self._json(r)
 
 
