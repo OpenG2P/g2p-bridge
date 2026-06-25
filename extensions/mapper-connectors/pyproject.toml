@@ -17,6 +17,7 @@ classifiers = [
 ]
 dependencies = [
   "openg2p-fastapi-common",
+  "openg2p-g2p-bridge-models",
   "openg2p-spar-models",
   "httpx",
   "pydantic",

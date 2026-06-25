@@ -72,8 +72,8 @@ spec:
             - name: SANITY_BENE_PORTAL_ENABLED
               value: {{ $s.benePortalEnabled | quote }}
             # If inbound signature validation is on, the write tests self-skip.
-            - name: SANITY_KEYMANAGER_AUTH_ENABLED
-              value: {{ .Values.global.g2pBridgeKeymanagerAuthEnabled | quote }}
+            - name: SANITY_SIGNATURE_VALIDATION_ENABLED
+              value: {{ .Values.global.g2pBridgeSignatureValidationEnabled | quote }}
             - name: SANITY_CLEANUP_ON_TEARDOWN
               value: "true"
             - name: SANITY_RESULTS_DIR

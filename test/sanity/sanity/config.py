@@ -64,7 +64,7 @@ class Config:
     disbursement_cycle_id: int = 1
     disbursement_frequency: str = "Monthly"
 
-    keymanager_auth_enabled: bool = False
+    signature_validation_enabled: bool = False
 
     # Bene-Portal API tests. Disabled for now — the bene-portal enforces OIDC auth
     # and the suite does not yet authenticate (calls return 401). Enable once the

@@ -17,9 +17,6 @@ global:
   bridgeDBSecret: '{{ .Release.Name }}-db'
   bridgeDBUserPasswordKey: '{{ .Release.Name }}-db-user'
 
-    # Internal service name of Keymanager (same as NSR)
-  keymanagerInstallationName: commons-services-keymanager
-
   # Default name of Redis that is installed with this chart
   redisInstallationName: '{{ .Release.Name }}-redis-master'
 
@@ -57,12 +54,27 @@ global:
   # Key containing client password (keycloak-init uses "client_secret").
   g2pBridgeAuthClientSecretKey: 'client_secret'
 
-  # When true, the Bridge authenticates to Keymanager (client-credentials) using
-  # the g2p-bridge client. Disabled for now; enable in production together with
-  # keycloak-init.enabled below.
+  # Inbound partner signature verification (local, Keymanager-free). When true,
+  # every Partner API request must carry a valid detached JWS in the "Signature"
+  # header, verified in-process against the partner's public key. Partner keys are
+  # mounted from a user-managed Secret (one JWKS file per partner, named
+  # PARTNER_<MNEMONIC>.json). Off by default — turn on once partners are onboarded.
   g2pBridgeSignatureValidationEnabled: false
-  g2pBridgeKeymanagerAuthEnabled: false
-  g2pBridgeKeymanagerAppId: OPENG2P_BRIDGE
+  # Directory the partner public keys are mounted at, and the Secret holding them.
+  g2pBridgePartnerKeysDir: /etc/g2p-bridge/partner-keys
+  g2pBridgePartnerKeysSecret: '{{ .Release.Name }}-partner-keys'
+  # Comma-separated allowed JWS algorithms (asymmetric only; "none"/HMAC always
+  # rejected). ES256 is the recommended baseline; EdDSA preferred where supported.
+  g2pBridgeSignatureAllowedAlgorithms: "ES256,EdDSA,PS256,RS256"
+
+  # Outbound request signing to SPAR (only needed when SPAR enforces signatures).
+  # The Bridge signs each resolve request with its own private key, mounted from a
+  # user-managed Secret; SPAR must hold the matching public key. Enabled per the
+  # mapper-connectors SPAR_MAPPER_API_SIGN_ENABLED flag (off by default).
+  g2pBridgeSigningKeyDir: /etc/g2p-bridge/signing-key
+  g2pBridgeSigningKeySecret: '{{ .Release.Name }}-signing-key'
+  g2pBridgeSigningKeyKid: ""
+  g2pBridgeSigningAlgorithm: ES256
 
   PBMSDBHostname: commons-postgresql
   PBMSDB: pbms_db
@@ -181,7 +193,7 @@ g2pBridgeApi:
     name: ""
   image:
     repository: openg2p/openg2p-bridge-partner-api
-    tag: "develop"
+    tag: "g2p-5209"
     pullPolicy: Always
   podSecurityContext:
     enabled: false
@@ -220,27 +232,27 @@ g2pBridgeApi:
     G2P_BRIDGE_PORT: '{{ .Values.containerPort }}'
     G2P_BRIDGE_OPENAPI_ROOT_PATH: '{{ .Values.openapiRootPath }}'
 
-    G2P_BRIDGE_JWT_VALIDATE_KEYMANAGER_APP_ID: '{{ .Values.global.g2pBridgeKeymanagerAppId }}'
-    G2P_BRIDGE_KEYMANAGER_API_BASE_URL: "http://{{ .Values.global.keymanagerInstallationName }}/v1/keymanager"
-    # Inbound partner JWT signature validation on Partner API endpoints.
+    # Inbound partner JWS signature verification (local, Keymanager-free).
     G2P_BRIDGE_SIGNATURE_VALIDATION_ENABLED: '{{ .Values.global.g2pBridgeSignatureValidationEnabled }}'
-    # Outbound Keymanager API authentication (OAuth client credentials).
-    G2P_BRIDGE_KEYMANAGER_AUTH_ENABLED: '{{ .Values.global.g2pBridgeKeymanagerAuthEnabled }}'
-    G2P_BRIDGE_OAUTH_ENABLED: '{{ .Values.global.g2pBridgeKeymanagerAuthEnabled }}'
-    G2P_BRIDGE_OAUTH_URL: "{{ tpl .Values.global.keycloakIssuerUrl $ }}/protocol/openid-connect/token"
-    G2P_BRIDGE_OAUTH_CLIENT_ID: '{{ tpl .Values.global.g2pBridgeAuthClientId $ }}'
+    G2P_BRIDGE_PARTNER_KEYS_DIR: '{{ .Values.global.g2pBridgePartnerKeysDir }}'
+    G2P_BRIDGE_SIGNATURE_ALLOWED_ALGORITHMS: '{{ .Values.global.g2pBridgeSignatureAllowedAlgorithms }}'
   envVarsFrom:
     G2P_BRIDGE_DB_PASSWORD:
       secretKeyRef:
         name: '{{ tpl .Values.global.bridgeDBSecret $ }}'
         key: '{{ tpl .Values.global.bridgeDBUserPasswordKey $ }}'
-    # Keycloak client secret — only exists when keycloak-init runs (keymanager
-    # auth). optional:true lets the API start when auth is off.
-    G2P_BRIDGE_OAUTH_CLIENT_SECRET:
-      secretKeyRef:
-        name: '{{ tpl .Values.global.g2pBridgeAuthClientSecret $ }}'
-        key: '{{ tpl .Values.global.g2pBridgeAuthClientSecretKey $ }}'
+  # Partner public keys for inbound signature verification, mounted (read-only)
+  # from a user-managed Secret. optional:true lets the API start with the mount
+  # absent (e.g. signature validation off / not yet onboarded).
+  extraVolumes:
+    - name: partner-keys
+      secret:
+        secretName: '{{ tpl .Values.global.g2pBridgePartnerKeysSecret $ }}'
         optional: true
+  extraVolumeMounts:
+    - name: partner-keys
+      mountPath: '{{ .Values.global.g2pBridgePartnerKeysDir }}'
+      readOnly: true
 
   startupProbe:
     enabled: true
@@ -306,7 +318,7 @@ openg2pG2pBridgeBenePortalApi:
     name: ""
   image:
     repository: openg2p/openg2p-bridge-bene-portal-api
-    tag: "develop"
+    tag: "g2p-5209"
     pullPolicy: Always
   podSecurityContext:
     enabled: false
@@ -418,7 +430,7 @@ g2pBridgeCeleryBeatProducers:
         - 'until nc -z {{ tpl .Values.global.redisInstallationName $ }} 6379; do echo "waiting for redis..."; sleep 3; done'
   image:
     repository: openg2p/openg2p-bridge-celery
-    tag: "develop"
+    tag: "g2p-5209"
     pullPolicy: Always
 
   envVars:
@@ -504,7 +516,7 @@ g2pBridgeCeleryWorkers:
         - 'until nc -z {{ tpl .Values.global.redisInstallationName $ }} 6379; do echo "waiting for redis..."; sleep 3; done'
   image:
     repository: openg2p/openg2p-bridge-celery
-    tag: "develop"
+    tag: "g2p-5209"
     pullPolicy: Always
 
   envVars:
@@ -532,13 +544,14 @@ g2pBridgeCeleryWorkers:
     # Read by SPARMapperClient (extensions/mapper-connectors/config.py), not G2PCONNECT_*.
     G2P_BRIDGE_MAPPER_CONNECTORS_SPAR_MAPPER_URL: '{{ .Values.global.g2pBridgeMapperBaseUrl }}/mapper/resolve'
     G2P_BRIDGE_MAPPER_CONNECTORS_SPAR_MAPPER_API_SIGN_ENABLED: false
+    # Local (Keymanager-free) signing of outbound SPAR requests. Used only when
+    # SPAR_MAPPER_API_SIGN_ENABLED is true; key mounted from a Secret (see below).
+    G2P_BRIDGE_MAPPER_CONNECTORS_SIGNING_KEY_PATH: '{{ .Values.global.g2pBridgeSigningKeyDir }}/signing-key.json'
+    G2P_BRIDGE_MAPPER_CONNECTORS_SIGNING_KEY_KID: '{{ .Values.global.g2pBridgeSigningKeyKid }}'
+    G2P_BRIDGE_MAPPER_CONNECTORS_SIGNING_ALGORITHM: '{{ .Values.global.g2pBridgeSigningAlgorithm }}'
+    G2P_BRIDGE_MAPPER_CONNECTORS_SIGNING_ALLOWED_ALGORITHMS: '{{ .Values.global.g2pBridgeSignatureAllowedAlgorithms }}'
     G2P_BRIDGE_CELERY_WORKERS_MAPPER_REQUEST_SENDER_ID: openg2p-g2p-bridge
 
-    G2P_BRIDGE_CELERY_WORKERS_KEYMANAGER_API_BASE_URL: 'http://{{ .Values.global.keymanagerInstallationName }}/v1/keymanager'
-    G2P_BRIDGE_CELERY_WORKERS_KEYMANAGER_SIGN_APP_ID: '{{ .Values.global.g2pBridgeKeymanagerAppId }}'
-    G2P_BRIDGE_CELERY_WORKERS_OAUTH_ENABLED: '{{ .Values.global.g2pBridgeKeymanagerAuthEnabled }}'
-    G2P_BRIDGE_CELERY_WORKERS_OAUTH_URL: '{{ tpl .Values.global.keycloakIssuerUrl $ }}/protocol/openid-connect/token'
-    G2P_BRIDGE_CELERY_WORKERS_OAUTH_CLIENT_ID: '{{ tpl .Values.global.g2pBridgeAuthClientId $ }}'
     G2P_BRIDGE_CELERY_WORKERS_DB_HOSTNAME_PBMS: "{{ tpl .Values.global.PBMSDBHostname $ }}"
     G2P_BRIDGE_CELERY_WORKERS_DB_DBNAME_PBMS: '{{ tpl .Values.global.PBMSDB $ }}'
     G2P_BRIDGE_CELERY_WORKERS_DB_PORT_PBMS: 5432
@@ -556,13 +569,9 @@ g2pBridgeCeleryWorkers:
     G2P_BRIDGE_BANK_CONNECTORS_FUNDS_DISBURSEMENT_URL_EXAMPLE_BANK: '{{ tpl .Values.global.g2pBridgeExampleBankBaseUrl $ }}/initiate_payment'
     G2P_BRIDGE_BANK_CONNECTORS_BANK_SIMULATOR_CODE: '{{ tpl .Values.global.g2pBrdidgeExampleBankCode $ }}'
 
-    G2P_BRIDGE_CELERY_WORKERS_MAPPER_REQUEST_JWT_ENABLED: false
     G2P_BRIDGE_CELERY_WORKERS_BANK_FA_DECONSTRUCT_STRATEGY: '^account_number:(?P<account_number>.*)\.branch_code:(?P<branch_code>.*)\.bank_code:(?P<bank_code>.*)\.mobile_number:(?P<mobile_number>.*)\.email_address:(?P<email_address>.*)\.fa_type:(?P<fa_type>.*)$'
     G2P_BRIDGE_CELERY_WORKERS_MOBILE_WALLET_DECONSTRUCT_STRATEGY: '^mobile_number:(?P<mobile_number>.*)\.wallet_provider_name:(?P<wallet_provider_name>.*)\.wallet_provider_code:(?P<wallet_provider_code>.*)\.fa_type:(?P<fa_type>.*)$'
     G2P_BRIDGE_CELERY_WORKERS_EMAIL_WALLET_DECONSTRUCT_STRATEGY: '^email_address:(?P<email_address>.*)\.wallet_provider_name:(?P<wallet_provider_name>.*)\.wallet_provider_code:(?P<wallet_provider_code>.*)\.fa_type:(?P<fa_type>.*)$'
-    G2P_BRIDGE_CELERY_WORKERS_SIGN_KEY_KEYMANAGER_APP_ID: '{{ .Values.global.g2pBridgeKeymanagerAppId }}'
-    G2P_BRIDGE_CELERY_WORKERS_SIGN_KEY_KEYMANAGER_REF_ID: ''
-    G2P_BRIDGE_CELERY_WORKERS_KEYMANAGER_API_TIMEOUT: 10
 
     G2P_BRIDGE_AGENCY_ALLOCATOR_DB_USERNAME_PBMS: '{{ tpl .Values.global.PBMSDBUser $ }}'
     G2P_BRIDGE_AGENCY_ALLOCATOR_DB_HOSTNAME_PBMS: "{{ tpl .Values.global.PBMSDBHostname $ }}"
@@ -605,9 +614,8 @@ g2pBridgeCeleryWorkers:
         name: '{{ tpl .Values.global.bridgeDBSecret $ }}'
         key: '{{ tpl .Values.global.bridgeDBUserPasswordKey $ }}'
     # The secrets below only exist when their feature is enabled — registry/PBMS
-    # secrets with in-kind, the keycloak client secret with keymanager auth.
-    # optional:true lets the pod start without them in a digital-only / auth-off
-    # deployment.
+    # secrets with in-kind. optional:true lets the pod start without them in a
+    # digital-only deployment.
     G2P_BRIDGE_CELERY_WORKERS_DB_PASSWORD_PBMS:
       secretKeyRef:
         name: '{{ tpl .Values.global.PBMSDBSecret $ }}'
@@ -633,11 +641,19 @@ g2pBridgeCeleryWorkers:
         name: '{{ tpl .Values.global.PBMSDBSecret $ }}'
         key: '{{ tpl .Values.global.PBMSDBUserPasswordKey $ }}'
         optional: true
-    G2P_BRIDGE_CELERY_WORKERS_OAUTH_CLIENT_SECRET:
-      secretKeyRef:
-        name: '{{ tpl .Values.global.g2pBridgeAuthClientSecret $ }}'
-        key: '{{ tpl .Values.global.g2pBridgeAuthClientSecretKey $ }}'
+
+  # Bridge signing key for outbound SPAR request signing, mounted (read-only)
+  # from a user-managed Secret. optional:true lets the worker start with the
+  # mount absent (the default, when SPAR signing is off).
+  extraVolumes:
+    - name: signing-key
+      secret:
+        secretName: '{{ tpl .Values.global.g2pBridgeSigningKeySecret $ }}'
         optional: true
+  extraVolumeMounts:
+    - name: signing-key
+      mountPath: '{{ .Values.global.g2pBridgeSigningKeyDir }}'
+      readOnly: true
 
   postgresCheckerInit:
     enabled: true
@@ -680,17 +696,15 @@ redis:
     enabled: false
 
 # ---------------------------------------------------------------------------
-# Keycloak init (referenced from the NSR chart): creates the G2P Bridge OIDC
-# client and its K8s secret so the Bridge can authenticate to Keymanager
-# (client-credentials) when g2pBridgeKeymanagerAuthEnabled is true. The
-# confidential client's generated secret is stored in a Secret named after the
-# clientId (key "client_secret") — exactly what the Bridge services consume.
-# Disabled for now (enable in production together with
-# global.g2pBridgeKeymanagerAuthEnabled); leaving it on would make `helm install`
-# depend on Keycloak being reachable.
+# Keycloak init: previously created the G2P Bridge OIDC (client-credentials)
+# client used solely to authenticate to Keymanager. The Bridge no longer depends
+# on Keymanager — partner signatures are verified locally — so this OIDC client is
+# no longer required and is DISABLED by default. The block is kept (off) for
+# reference / reversibility; leaving it enabled would needlessly make
+# `helm install` depend on Keycloak being reachable.
 # ---------------------------------------------------------------------------
 keycloak-init:
-  enabled: true
+  enabled: false
   keycloak:
     # Internal URL to reach Keycloak within the namespace (commons layer).
     url: 'http://commons-keycloak:80'
@@ -738,7 +752,7 @@ exampleBankApi:
     name: ""
   image:
     repository: openg2p/openg2p-bridge-example-bank-api
-    tag: "develop"
+    tag: "g2p-5209"
     pullPolicy: Always
   podSecurityContext:
     enabled: false
@@ -856,7 +870,7 @@ exampleBankCeleryBeat:
     name: ""
   image:
     repository: openg2p/openg2p-bridge-example-bank-celery-beat-producers
-    tag: "develop"
+    tag: "g2p-5209"
     pullPolicy: Always
   podSecurityContext:
     enabled: false
@@ -937,7 +951,7 @@ exampleBankCeleryWorker:
     name: ""
   image:
     repository: openg2p/openg2p-bridge-example-bank-celery-workers
-    tag: "develop"
+    tag: "g2p-5209"
     pullPolicy: Always
   podSecurityContext:
     enabled: false
@@ -997,7 +1011,7 @@ sanity:
 
   image:
     repository: openg2p/openg2p-bridge-sanity
-    tag: develop
+    tag: g2p-5209
     pullPolicy: Always
 
   # L2 (end-to-end). false = L0 smoke + L1 contract only (no data). true = also

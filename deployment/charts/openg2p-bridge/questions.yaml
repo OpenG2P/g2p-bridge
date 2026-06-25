@@ -96,55 +96,25 @@ questions:
   group: Example Bank
   show_if: exampleBank.enabled=true
 
-# ----------------------------- Keycloak -----------------------------
-- variable: keycloak-init.enabled
-  description: Run keycloak-init to create the g2p-bridge OIDC client and its secret
+# --------------------------- Authentication -------------------------
+# Inbound partner signature verification is done locally (no Keymanager). Turn it
+# on only after onboarding partner public keys into the Secret below.
+- variable: global.g2pBridgeSignatureValidationEnabled
+  description: Verify a partner JWS signature on every Partner API request (partners must be onboarded first)
   type: boolean
-  default: true
-  label: Create Keycloak Client
-  group: Keycloak
-- variable: global.keycloakBaseUrl
-  description: Keycloak Base Url used in all components
+  default: false
+  label: Verify Partner Signatures
+  group: Authentication
+- variable: global.g2pBridgePartnerKeysSecret
+  description: Secret holding partner public keys — one JWKS file per partner, named PARTNER_<MNEMONIC>.json
   type: string
-  label: Keycloak Base URL
-  group: Keycloak
-- variable: global.keycloakRealm
-  description: Keycloak realm in which the Bridge client lives / is created
+  label: Partner Public Keys Secret
+  group: Authentication
+- variable: global.g2pBridgeSignatureAllowedAlgorithms
+  description: Comma-separated allowed JWS algorithms (asymmetric only; none/HMAC always rejected)
   type: string
-  label: Keycloak Realm
-  group: Keycloak
-- variable: global.g2pBridgeAuthClientId
-  description: OIDC Client ID
-  type: string
-  label: OIDC Client ID
-  group: Keycloak
-- variable: global.g2pBridgeAuthClientSecret
-  description: OIDC client Kubernetes secret name
-  type: string
-  label: OIDC Client Secret Name
-  group: Keycloak
-- variable: global.g2pBridgeAuthClientSecretKey
-  description: Key containing OIDC client password
-  type: string
-  label: OIDC Client Secret Key
-  group: Keycloak
-
-# ---------------------------- Keymanager ----------------------------
-- variable: global.g2pBridgeKeymanagerAuthEnabled
-  label: API Authentication Enabled
-  description: Enables Keymanager API authentication.
-  type: boolean
-  group: Keymanager
-- variable: global.g2pBridgeKeymanagerAppId
-  description: Keymanager Application ID for G2P Bridge
-  type: string
-  label: Keymanager App ID
-  group: Keymanager
-- variable: global.keymanagerInstallationName
-  description: In-cluster service name of Keymanager
-  type: string
-  label: Keymanager Service Name
-  group: Keymanager
+  label: Allowed Signature Algorithms
+  group: Authentication
 
 # ------------------------------- SPAR -------------------------------
 - variable: global.g2pBridgeMapperBaseUrl

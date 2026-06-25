@@ -25,5 +25,12 @@ class Settings(BaseSettings):
         "text/plain",
     ]
 
-    keymanager_sign_app_id: str = "OPENG2P_BRIDGE"
+    # Inbound partner JWS signature verification (local, Keymanager-free).
+    # When enabled, each Partner API request must carry a detached JWS in the
+    # "Signature" header, verified against the partner's public key loaded from
+    # partner_keys_dir (one JWKS file per partner, named PARTNER_<MNEMONIC>.json).
     signature_validation_enabled: bool = False
+    partner_keys_dir: str = "/etc/g2p-bridge/partner-keys"
+    # Comma-separated allowed JWS algorithms (asymmetric only). "none"/HMAC are
+    # always rejected regardless of this list.
+    signature_allowed_algorithms: str = "ES256,EdDSA,PS256,RS256"

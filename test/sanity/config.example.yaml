@@ -72,10 +72,10 @@ write_results: true
 results_dir: ""                # blank = <suite>/results
 
 # --- Auth ----------------------------------------------------------------------
-# The sanity profile assumes inbound Keymanager auth is OFF
-# (global.g2pBridgeKeymanagerAuthEnabled=false). If you turn it on, signed
+# The sanity profile assumes inbound partner signature validation is OFF
+# (global.g2pBridgeSignatureValidationEnabled=false). If you turn it on, signed
 # requests are required and the write tests will be skipped.
-keymanager_auth_enabled: false
+signature_validation_enabled: false
 
 # Bene-Portal API tests. Off for now — the bene-portal enforces OIDC auth and the
 # suite does not yet authenticate (calls 401). Enable once token auth is added.
