@@ -16,7 +16,7 @@ from this repo and forge requests as this partner. Production installs must:
 
 | File | What | Used by |
 | --- | --- | --- |
-| `test-partner.key.json` | ES256 **private** JWK | sanity client + Postman (to sign requests) |
+| `test-partner.key.json` | RS256 (RSA) **private** JWK | sanity client + Postman (to sign requests) |
 | `PARTNER_TEST_SANITY.json` | public JWKS (sanity's `sender_app_mnemonic = TEST_SANITY`) | onboarded into the Bridge |
 | `PARTNER_TRAINING.json` | public JWKS (Postman's `sender_app = TRAINING`) | onboarded into the Bridge |
 

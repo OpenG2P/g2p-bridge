@@ -109,11 +109,11 @@ BODY = {"request_header": {"sender_app_mnemonic": "my-psp"}, "amount": 100}
 
 @pytest.mark.asyncio
 async def test_validator_accepts_valid_partner_signature(tmp_path):
-    key = generate_key("EC", "P-256", {"kid": "psp-1", "alg": "ES256", "use": "sig"})
+    key = generate_key("RSA", 2048, {"kid": "psp-1", "alg": "RS256", "use": "sig"})
     _onboard(tmp_path, "PARTNER_MY_PSP", key)
     helper = _helper_for(tmp_path)
 
-    sig = _sign_detached(BODY, key, "ES256", "psp-1")
+    sig = _sign_detached(BODY, key, "RS256", "psp-1")
     request = _make_request(json.dumps(BODY).encode(), sig)
 
     with patch.object(JWTValidationHelper, "get_component", return_value=helper):
@@ -122,7 +122,7 @@ async def test_validator_accepts_valid_partner_signature(tmp_path):
 
 @pytest.mark.asyncio
 async def test_validator_rejects_missing_signature_header(tmp_path):
-    key = generate_key("EC", "P-256", {"kid": "psp-1", "alg": "ES256", "use": "sig"})
+    key = generate_key("RSA", 2048, {"kid": "psp-1", "alg": "RS256", "use": "sig"})
     _onboard(tmp_path, "PARTNER_MY_PSP", key)
     helper = _helper_for(tmp_path)
 
@@ -133,11 +133,11 @@ async def test_validator_rejects_missing_signature_header(tmp_path):
 
 @pytest.mark.asyncio
 async def test_validator_rejects_tampered_body(tmp_path):
-    key = generate_key("EC", "P-256", {"kid": "psp-1", "alg": "ES256", "use": "sig"})
+    key = generate_key("RSA", 2048, {"kid": "psp-1", "alg": "RS256", "use": "sig"})
     _onboard(tmp_path, "PARTNER_MY_PSP", key)
     helper = _helper_for(tmp_path)
 
-    sig = _sign_detached(BODY, key, "ES256", "psp-1")
+    sig = _sign_detached(BODY, key, "RS256", "psp-1")
     # Same signature, but the transmitted body is altered.
     tampered = {"request_header": {"sender_app_mnemonic": "my-psp"}, "amount": 999}
     request = _make_request(json.dumps(tampered).encode(), sig)
@@ -147,12 +147,12 @@ async def test_validator_rejects_tampered_body(tmp_path):
 
 @pytest.mark.asyncio
 async def test_validator_rejects_unonboarded_partner(tmp_path):
-    key = generate_key("EC", "P-256", {"kid": "psp-1", "alg": "ES256", "use": "sig"})
+    key = generate_key("RSA", 2048, {"kid": "psp-1", "alg": "RS256", "use": "sig"})
     # Onboard a different partner; the request comes from my-psp (unknown).
     _onboard(tmp_path, "PARTNER_OTHER", key)
     helper = _helper_for(tmp_path)
 
-    sig = _sign_detached(BODY, key, "ES256", "psp-1")
+    sig = _sign_detached(BODY, key, "RS256", "psp-1")
     request = _make_request(json.dumps(BODY).encode(), sig)
     with patch.object(JWTValidationHelper, "get_component", return_value=helper):
         assert await JWTSignatureValidator()(request) is False

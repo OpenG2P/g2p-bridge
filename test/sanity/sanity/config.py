@@ -76,7 +76,7 @@ class Config:
     sign_requests: bool = True
     signing_key_path: str = _DEFAULT_SIGNING_KEY
     signing_key_kid: str = "test-partner-2026"
-    signing_algorithm: str = "ES256"
+    signing_algorithm: str = "RS256"
 
     # Bene-Portal API tests. Disabled for now — the bene-portal enforces OIDC auth
     # and the suite does not yet authenticate (calls return 401). Enable once the

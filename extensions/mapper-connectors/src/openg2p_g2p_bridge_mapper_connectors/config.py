@@ -19,5 +19,5 @@ class Settings(BaseSettings):
     # public key (registered as PARTNER_<BRIDGE_MNEMONIC>).
     signing_key_path: str = "/etc/g2p-bridge/signing-key/signing-key.json"
     signing_key_kid: str = ""
-    signing_algorithm: str = "ES256"
-    signing_allowed_algorithms: str = "ES256,EdDSA,PS256,RS256"
+    signing_algorithm: str = "RS256"
+    signing_allowed_algorithms: str = "RS256"

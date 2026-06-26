@@ -39,9 +39,9 @@ local store.
 > move it into `fastapi-common` `partner_auth` so all products share one
 > implementation, at which point the Bridge just swaps the one-line registration
 > in `app.py`. The Bridge version additionally hardens the design with `kid`-based
-> multi-key rotation, an ES256 default + explicit algorithm allow-list, a
-> configurable signing key, and Secret-volume mounts (not K8s-API reads) — carry
-> these upstream at migration.
+> multi-key rotation, an explicit algorithm allow-list (RS256 only; HS*/none hard
+> blocked), a configurable signing key, and Secret-volume mounts (not K8s-API
+> reads) — carry these upstream at migration.
 
 | Direction | Operation | Key used | Source |
 | --- | --- | --- | --- |
@@ -72,20 +72,18 @@ verifies the signature against the partner's registered public key.
 
 ## Algorithms
 
-The allowed set is **explicit and pinned** (the old path pinned nothing).
+**RS256 only.** The Bridge supports a single algorithm — **RS256** (RSA with
+SHA-256), an **asymmetric** scheme using a public/private keypair.
 
-| Algorithm | Use |
-| --- | --- |
-| **ES256** (ECDSA P-256) | **Required baseline** — small, fast, universally supported, FIPS/HSM-friendly |
-| **EdDSA** (Ed25519) | Preferred for partners that support it |
-| **PS256** (RSA-PSS ≥3072-bit) | For RSA-bound partners |
-| **RS256** (RSA PKCS#1 v1.5) | Backward-compat only (legacy) |
-
-`none` and all HMAC (`HS*`) algorithms are **always rejected**, regardless of
-configuration — this closes the JWS algorithm-confusion attack. The allowed set
-is configurable per deployment (`global.g2pBridgeSignatureAllowedAlgorithms`),
-and the algorithm declared in a partner's JWS header must match the algorithm
-registered with that key.
+* **Symmetric algorithms are not supported.** The HMAC family (`HS*`), which uses
+  a shared secret, is **always rejected** — as is `none`. Accepting a symmetric
+  algorithm against an asymmetric key store is the classic JWS
+  algorithm-confusion attack, so this is a hard block independent of config.
+* The allowed set is still configurable (`global.g2pBridgeSignatureAllowedAlgorithms`,
+  default `RS256`) for flexibility, but RS256 is the only algorithm in use, and the
+  algorithm in a partner's JWS header must match the algorithm registered with
+  that key.
+* RSA keys of **2048 bits or larger** are recommended.
 
 ## Onboarding a partner (inbound)
 
@@ -104,7 +102,7 @@ partner generates their own):
 python - <<'PY'
 import json
 from joserfc.jwk import generate_key
-k = generate_key("EC", "P-256", {"kid": "psp-2026-01", "alg": "ES256", "use": "sig"})
+k = generate_key("RSA", 2048, {"kid": "psp-2026-01", "alg": "RS256", "use": "sig"})
 open("my_psp_private.json", "w").write(json.dumps(k.as_dict(private=True)))
 open("my_psp_public.json", "w").write(json.dumps(k.as_dict(private=False)))
 PY
@@ -116,8 +114,8 @@ One file named `PARTNER_<MNEMONIC>.json`, a standard JWKS holding one or more
 public keys:
 
 ```json
-{ "keys": [ { "kty": "EC", "crv": "P-256", "kid": "psp-2026-01", "alg": "ES256",
-              "use": "sig", "x": "...", "y": "..." } ] }
+{ "keys": [ { "kty": "RSA", "kid": "psp-2026-01", "alg": "RS256",
+              "use": "sig", "n": "...", "e": "AQAB" } ] }
 ```
 
 For a partner with `sender_app_mnemonic = my-psp`, the file is
@@ -162,7 +160,7 @@ When SPAR enforces signature verification (it uses a single global switch for al
 its callers — there is no per-caller bypass), the Bridge must sign its resolve
 requests too. The Bridge signs locally with its **own private key**:
 
-1. Generate a Bridge signing keypair (ES256 recommended), store the **private**
+1. Generate a Bridge signing keypair (RS256 / RSA-2048+), store the **private**
    JWK as `signing-key.json` in the signing-key Secret:
 
    ```bash
@@ -205,7 +203,7 @@ it can be impersonated. For production: set **`global.testPartnerEnabled=false`*
 choose `g2pBridgeSignatureValidationEnabled` explicitly. See
 [`test/keys/README.md`](../test/keys/README.md).
 
-> The Postman pre-request uses ES256 via `jsrsasign` in the Postman sandbox. The
+> The Postman pre-request uses RS256 via `jsrsasign` in the Postman sandbox. The
 > signing logic is validated against the Bridge verifier, but the Postman-runtime
 > plumbing (CDN load + header injection) should be smoke-tested in Postman/newman
 > against a live trial before relying on it.
@@ -219,11 +217,11 @@ choose `g2pBridgeSignatureValidationEnabled` explicitly. See
 | `g2pBridgeSignatureValidationEnabled` | `false` | Verify partner signatures on the Partner API |
 | `g2pBridgePartnerKeysDir` | `/etc/g2p-bridge/partner-keys` | Mount path for partner JWKS files |
 | `g2pBridgePartnerKeysSecret` | `<release>-partner-keys` | Secret holding partner JWKS files |
-| `g2pBridgeSignatureAllowedAlgorithms` | `ES256,EdDSA,PS256,RS256` | Allowed JWS algorithms |
+| `g2pBridgeSignatureAllowedAlgorithms` | `RS256` | Allowed JWS algorithms (RS256 only) |
 | `g2pBridgeSigningKeyDir` | `/etc/g2p-bridge/signing-key` | Mount path for the Bridge signing key |
 | `g2pBridgeSigningKeySecret` | `<release>-signing-key` | Secret holding the Bridge private JWK |
 | `g2pBridgeSigningKeyKid` | `""` | `kid` for outbound signatures (else key's own) |
-| `g2pBridgeSigningAlgorithm` | `ES256` | Algorithm for outbound signing |
+| `g2pBridgeSigningAlgorithm` | `RS256` | Algorithm for outbound signing |
 
 ### Environment variables
 
@@ -248,9 +246,13 @@ Measured single-core throughput (Python, `PyJWTCryptoHelper`):
 
 | Operation | Throughput | Per op |
 | --- | --- | --- |
-| ES256 verify (inbound) | ~10,000 /sec | ~0.10 ms |
 | RS256 verify (inbound) | ~11,000 /sec | ~0.09 ms |
-| ES256 sign (outbound) | ~28,000 /sec | ~0.035 ms |
+| RS256 sign (outbound) | ~1,000 /sec | ~1.0 ms |
+
+Inbound **verification** is the request hot path and is fast (~0.09 ms). RSA
+**signing** is intrinsically slower (~1 ms), but it is **outbound-only** (Bridge →
+SPAR), **off by default**, and runs in the **async Celery workers** — never on the
+Partner API request path — so it does not affect inbound throughput.
 
 Why this scales to several thousand disbursement requests comfortably:
 
@@ -265,10 +267,8 @@ Why this scales to several thousand disbursement requests comfortably:
 * **Scale horizontally** — add Partner API replicas and Celery workers as usual;
   there is no shared crypto service to bottleneck on.
 
-ES256 is the recommended baseline (fast, small); RS256 verifies even faster if a
-partner is RSA-bound. If verification CPU ever became material at extreme
-concurrency, the verify could be offloaded to a thread pool — not needed at the
-scales above.
+If verification CPU ever became material at extreme concurrency, the verify could
+be offloaded to a thread pool — not needed at the scales above.
 
 ## Security considerations & limitations
 

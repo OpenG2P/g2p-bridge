@@ -5,6 +5,11 @@ the outbound signing path used for SPAR, with keys generated and stored locally 
 no Keymanager. A partner "signs" a detached JWS exactly as the wire contract
 expects (signing input = base64url(header) + "." + base64url(canonical_json(body)))
 and the helper verifies it against a JWKS file on disk.
+
+Keys are RSA / RS256 (the only supported algorithm). The partner signatures are
+generated with joserfc (a different library) and verified by the PyJWT-based
+helper — a deliberate cross-library interop check. ``none`` and HMAC (HS*) are
+always rejected.
 """
 
 import base64
@@ -25,7 +30,7 @@ def _canonical(body: dict) -> bytes:
     return orjson.dumps(body, option=orjson.OPT_SORT_KEYS)
 
 
-def _partner_sign(body: dict, key, alg: str, kid: str) -> str:
+def _partner_sign(body: dict, key, kid: str, alg: str = "RS256") -> str:
     """Produce a detached JWS (header..signature) the way a partner would."""
     full = jws.serialize_compact({"alg": alg, "kid": kid}, _canonical(body), key, algorithms=[alg])
     part1, _payload, part3 = full.split(".")
@@ -37,8 +42,8 @@ def _write_jwks(directory, reference_id, public_keys):
     path.write_text(json.dumps({"keys": public_keys}))
 
 
-def _gen_ec(kid):
-    return generate_key("EC", "P-256", {"kid": kid, "alg": "ES256", "use": "sig"})
+def _gen_key(kid):
+    return generate_key("RSA", 2048, {"kid": kid, "alg": "RS256", "use": "sig"})
 
 
 BODY = {"request_header": {"sender_app_mnemonic": "my-psp"}, "amount": 100, "z": 1, "a": 2}
@@ -46,38 +51,38 @@ BODY = {"request_header": {"sender_app_mnemonic": "my-psp"}, "amount": 100, "z":
 
 @pytest.mark.asyncio
 async def test_verify_valid_signature(tmp_path):
-    key = _gen_ec("psp-1")
+    key = _gen_key("psp-1")
     _write_jwks(tmp_path, "PARTNER_MY_PSP", [key.as_dict(private=False)])
     helper = PyJWTCryptoHelper(partner_keys_dir=str(tmp_path))
 
-    sig = _partner_sign(BODY, key, "ES256", "psp-1")
+    sig = _partner_sign(BODY, key, "psp-1")
     assert await helper.verify_jwt(sig, payload=BODY, km_ref_id="PARTNER_MY_PSP") is True
 
 
 @pytest.mark.asyncio
 async def test_verify_rejects_tampered_payload(tmp_path):
-    key = _gen_ec("psp-1")
+    key = _gen_key("psp-1")
     _write_jwks(tmp_path, "PARTNER_MY_PSP", [key.as_dict(private=False)])
     helper = PyJWTCryptoHelper(partner_keys_dir=str(tmp_path))
 
-    sig = _partner_sign(BODY, key, "ES256", "psp-1")
+    sig = _partner_sign(BODY, key, "psp-1")
     tampered = {**BODY, "amount": 999}
     assert await helper.verify_jwt(sig, payload=tampered, km_ref_id="PARTNER_MY_PSP") is False
 
 
 @pytest.mark.asyncio
 async def test_verify_rejects_unknown_partner(tmp_path):
-    key = _gen_ec("psp-1")
+    key = _gen_key("psp-1")
     _write_jwks(tmp_path, "PARTNER_MY_PSP", [key.as_dict(private=False)])
     helper = PyJWTCryptoHelper(partner_keys_dir=str(tmp_path))
 
-    sig = _partner_sign(BODY, key, "ES256", "psp-1")
+    sig = _partner_sign(BODY, key, "psp-1")
     assert await helper.verify_jwt(sig, payload=BODY, km_ref_id="PARTNER_UNKNOWN") is False
 
 
 @pytest.mark.asyncio
 async def test_verify_rejects_hmac_algorithm(tmp_path):
-    key = _gen_ec("psp-1")
+    key = _gen_key("psp-1")
     _write_jwks(tmp_path, "PARTNER_MY_PSP", [key.as_dict(private=False)])
     helper = PyJWTCryptoHelper(partner_keys_dir=str(tmp_path))
 
@@ -88,18 +93,19 @@ async def test_verify_rejects_hmac_algorithm(tmp_path):
 
 @pytest.mark.asyncio
 async def test_verify_rejects_disallowed_algorithm(tmp_path):
-    key = _gen_ec("psp-1")
+    # An RS256 token is rejected when the allow-list excludes RS256.
+    key = _gen_key("psp-1")
     _write_jwks(tmp_path, "PARTNER_MY_PSP", [key.as_dict(private=False)])
-    helper = PyJWTCryptoHelper(partner_keys_dir=str(tmp_path), allowed_algorithms=("RS256",))
+    helper = PyJWTCryptoHelper(partner_keys_dir=str(tmp_path), allowed_algorithms=("ES256",))
 
-    sig = _partner_sign(BODY, key, "ES256", "psp-1")
+    sig = _partner_sign(BODY, key, "psp-1")
     assert await helper.verify_jwt(sig, payload=BODY, km_ref_id="PARTNER_MY_PSP") is False
 
 
 @pytest.mark.asyncio
 async def test_verify_supports_key_rotation_by_kid(tmp_path):
-    key1 = _gen_ec("psp-1")
-    key2 = _gen_ec("psp-2")
+    key1 = _gen_key("psp-1")
+    key2 = _gen_key("psp-2")
     _write_jwks(
         tmp_path,
         "PARTNER_MY_PSP",
@@ -107,8 +113,8 @@ async def test_verify_supports_key_rotation_by_kid(tmp_path):
     )
     helper = PyJWTCryptoHelper(partner_keys_dir=str(tmp_path))
 
-    sig_old = _partner_sign(BODY, key1, "ES256", "psp-1")
-    sig_new = _partner_sign(BODY, key2, "ES256", "psp-2")
+    sig_old = _partner_sign(BODY, key1, "psp-1")
+    sig_new = _partner_sign(BODY, key2, "psp-2")
     assert await helper.verify_jwt(sig_old, payload=BODY, km_ref_id="PARTNER_MY_PSP") is True
     assert await helper.verify_jwt(sig_new, payload=BODY, km_ref_id="PARTNER_MY_PSP") is True
 
@@ -117,18 +123,18 @@ async def test_verify_supports_key_rotation_by_kid(tmp_path):
 async def test_verify_rejects_signature_from_different_key(tmp_path):
     # Forgery: attacker uses the onboarded partner's reference id AND kid, but
     # signs with their own private key. Must be rejected.
-    onboarded = _gen_ec("psp-1")
-    attacker = _gen_ec("psp-1")  # same kid, different key material
+    onboarded = _gen_key("psp-1")
+    attacker = _gen_key("psp-1")  # same kid, different key material
     _write_jwks(tmp_path, "PARTNER_MY_PSP", [onboarded.as_dict(private=False)])
     helper = PyJWTCryptoHelper(partner_keys_dir=str(tmp_path))
 
-    forged = _partner_sign(BODY, attacker, "ES256", "psp-1")
+    forged = _partner_sign(BODY, attacker, "psp-1")
     assert await helper.verify_jwt(forged, payload=BODY, km_ref_id="PARTNER_MY_PSP") is False
 
 
 @pytest.mark.asyncio
 async def test_verify_rejects_malformed_and_empty_signatures(tmp_path):
-    key = _gen_ec("psp-1")
+    key = _gen_key("psp-1")
     _write_jwks(tmp_path, "PARTNER_MY_PSP", [key.as_dict(private=False)])
     helper = PyJWTCryptoHelper(partner_keys_dir=str(tmp_path))
     for bad in ["", "not-a-jws", "a.b", "a.b.c.d", "...", "x..y"]:
@@ -137,10 +143,10 @@ async def test_verify_rejects_malformed_and_empty_signatures(tmp_path):
 
 @pytest.mark.asyncio
 async def test_verify_rejects_path_traversal_reference_id(tmp_path):
-    key = _gen_ec("psp-1")
+    key = _gen_key("psp-1")
     _write_jwks(tmp_path, "PARTNER_MY_PSP", [key.as_dict(private=False)])
     helper = PyJWTCryptoHelper(partner_keys_dir=str(tmp_path))
-    sig = _partner_sign(BODY, key, "ES256", "psp-1")
+    sig = _partner_sign(BODY, key, "psp-1")
     # A reference id that tries to escape the key dir must resolve to no key.
     for ref in ["PARTNER_../../ETC", "PARTNER_/ABS", "..", "PARTNER_A/B"]:
         assert await helper.verify_jwt(sig, payload=BODY, km_ref_id=ref) is False
@@ -149,18 +155,18 @@ async def test_verify_rejects_path_traversal_reference_id(tmp_path):
 @pytest.mark.asyncio
 async def test_verify_returns_false_without_key_store():
     helper = PyJWTCryptoHelper()  # no partner_keys_dir configured
-    key = _gen_ec("psp-1")
-    sig = _partner_sign(BODY, key, "ES256", "psp-1")
+    key = _gen_key("psp-1")
+    sig = _partner_sign(BODY, key, "psp-1")
     assert await helper.verify_jwt(sig, payload=BODY, km_ref_id="PARTNER_MY_PSP") is False
 
 
 @pytest.mark.asyncio
 async def test_create_jwt_token_round_trip(tmp_path):
-    signing_key = _gen_ec("bridge-1")
+    signing_key = _gen_key("bridge-1")
     key_path = tmp_path / "signing.json"
     key_path.write_text(json.dumps(signing_key.as_dict(private=True)))
     signer = PyJWTCryptoHelper(
-        signing_key_path=str(key_path), signing_key_kid="bridge-1", signing_algorithm="ES256"
+        signing_key_path=str(key_path), signing_key_kid="bridge-1", signing_algorithm="RS256"
     )
 
     payload = {"resolve": [1, 2, 3], "b": 1, "a": 0}
@@ -176,11 +182,11 @@ async def test_create_jwt_token_round_trip(tmp_path):
 
 @pytest.mark.asyncio
 async def test_create_jwt_token_rejects_disallowed_algorithm(tmp_path):
-    signing_key = _gen_ec("bridge-1")
+    signing_key = _gen_key("bridge-1")
     key_path = tmp_path / "signing.json"
     key_path.write_text(json.dumps(signing_key.as_dict(private=True)))
     signer = PyJWTCryptoHelper(
-        signing_key_path=str(key_path), signing_algorithm="HS256", allowed_algorithms=("ES256",)
+        signing_key_path=str(key_path), signing_algorithm="HS256", allowed_algorithms=("RS256",)
     )
     with pytest.raises(ValueError):
         await signer.create_jwt_token({"a": 1})

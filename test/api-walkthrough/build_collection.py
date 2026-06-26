@@ -725,12 +725,12 @@ function doSign() {
   var body = JSON.parse(pm.variables.replaceIn(raw));
   var jwk = JSON.parse(pm.variables.get('signing_private_jwk'));
   var key = KEYUTIL.getKey(jwk);
-  var header = { alg: 'ES256', kid: pm.variables.get('signing_kid') || jwk.kid };
+  var header = { alg: 'RS256', kid: pm.variables.get('signing_kid') || jwk.kid };
   var p1 = b64u(JSON.stringify(header));
   var p2 = b64u(canonical(body));
-  var sig = new KJUR.crypto.Signature({ alg: 'SHA256withECDSA' });
+  var sig = new KJUR.crypto.Signature({ alg: 'SHA256withRSA' });
   sig.init(key); sig.updateString(p1 + '.' + p2);
-  var p3 = hextob64u(KJUR.crypto.ECDSA.asn1SigToConcatSig(sig.sign()));
+  var p3 = hextob64u(sig.sign());
   pm.request.headers.upsert({ key: 'Signature', value: p1 + '..' + p3 });
 }
 
@@ -804,10 +804,25 @@ ENV_VARS = [
     ("signing_kid", "test-partner-2026"),
     (
         "signing_private_jwk",
-        '{"crv":"P-256","x":"d4zoYTTSHJOmqUSMcqL8bkLDrHtRIDXKxHHf91rRrSo",'
-        '"y":"ena--_HuHYqMLROH2c7jViK1C6xUSTbmRXRhVx-suxI",'
-        '"d":"Mtjj07k1PYjRcs9asSnrCGBOkWVD0ARAFDfsxqERLLQ",'
-        '"kid":"test-partner-2026","alg":"ES256","use":"sig","kty":"EC"}',
+        '{"n":"x58O6HUXdeDradiCZpE8ZRGH8VYsRAHfdur6HRd5-HEyGXSltRHuJyWmm67W7psIExrTURFTAbE86EO1pZqef'
+        "OElsbW_B008n4H5OCoxajXiLaxftvJKQuB7D9UrACkLazMJAJbWK1nfMhYAoya_JyYZ3CAk9TsRC35hcUmoqWd5zl1cwc"
+        "ss2CQzehF4FqicLqfoTibldLpMkpsLcnJywJux77uIhcvDE-S1CAvl8WEfORoXw_5D5zXDdL_Kbcv_czj_683pa4-fTAn"
+        'wFk8k-JIpv4GDZnNresC3iTPr_QEzZ8ilJMrWeJtJUBvv1_JUwbTLLKVzsBta1r5pdfzk_Q","e":"AQAB",'
+        '"d":"CE2fax_jt-2BHUf6NJX58yJFi05QTQve5a1kde1SD3l14gUuF1gFle9E_NjK6-Xa8iB9hbO4xis_I1IdriO-T-d'
+        "1j-zFY2JdES1w1ls67vYK0GeJG6z8VcfMlp4BSeJrLSxURYgApJD6bbToleC4tsIo9TUJFII-dUHuf63WrCUk3Mhfj2x"
+        "SE0DvJv1vmhDX1CXGk7m5YMscNK6Kbbv8lffQnNC2ErPU9zREXnWWKq2nOWEhKXZz5Hd4RBGI9722uqEtrdL0XnDSR0-"
+        '2ZZNuQ4fLCrAiewb9rv64W0L5N4bFhK0P01CnGKkfahkGeOGYDuJ0pzfAHpRNLPTuRsjuaQ",'
+        '"p":"8a331NlCPsPD4xIWLVXtc9WHnFSEdp05oGjym7-SbLK_dD5dBPmyXrIjClHeLwkwYQYeNWODZqLSfa8gxT8FRML'
+        'KVg6FP4dYTYlPDp3rt4jsCeL8e9FW-5UqibeBQSDm6HZh_MZVdKH4sOSChqjh_7JxI2uiPj_eL2srBPJ0-x8",'
+        '"q":"03McD4jB4wnDcgiDaBmHVDSJyLwwUm6nFPyCxJFnaZqAJ3iF33Jga2v4jPe7deVj1uUBR76dS86vFVuFYRhckPX'
+        'vSruauSlpBj6BP0J__ce7S2QEEx5FIKM_d3JZCCjsLbHc8BTJrNft55DvMQi9-nwm9ks1-48AhsVYHPsPOGM",'
+        '"dp":"2O2HW3UbYg0D4eiVIWJUfbl3PNob___F_vbUdPoyawDSmntzsQiTky4gB55OaTe9Rglgyhklk9WoTAoKxyF3EC'
+        '4rwazM66YHm6kY3gzfzGDJRWKJsHXJto5AnVaqXRQ0Twobj_FSORs9h0HE6yvhl0rLBLkS6v8W5scx2QHsAI8",'
+        '"dq":"ZF7esg0DpAbtbILYBaEgmPr7cHrMIUT_MLoQRMiUow9Ax_uw6Hk9haBR8nBh3rvNoaNA8VJtDiAFAglYjddnk'
+        'TP8q6fT8RLUFK-04FdrtAaMRGQsfvq-a5iyNrvjwTjTq3kjXB8yAEbbWjF1KPxyWaV3RTA8ZrXh1Rd2FQOjnOs",'
+        '"qi":"vUARQ60khu4PDMrXR6SZE5EMcp3GOHOHmoLtJTnNR6E2ZoA5Aghp4TVntxJSxqUlOThjxL2K3YelbgyR7Do9mJ'
+        'kq-iAVq8hkRQXtGpsL_5b_CrA3z4vXi_SJ8PyIbm-2ZVPXF4YWRzqHSQLTD-E_IQHNTAhLls3ETYWm0EfSyng",'
+        '"kid":"test-partner-2026","alg":"RS256","use":"sig","kty":"RSA"}',
     ),
     ("jsrsasign_url", "https://cdnjs.cloudflare.com/ajax/libs/jsrsasign/11.1.0/jsrsasign-all-min.js"),
     ("spar_strategy_id", "5"),

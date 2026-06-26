@@ -1,13 +1,12 @@
 {
   "keys": [
     {
-      "crv": "P-256",
-      "x": "d4zoYTTSHJOmqUSMcqL8bkLDrHtRIDXKxHHf91rRrSo",
-      "y": "ena--_HuHYqMLROH2c7jViK1C6xUSTbmRXRhVx-suxI",
+      "n": "x58O6HUXdeDradiCZpE8ZRGH8VYsRAHfdur6HRd5-HEyGXSltRHuJyWmm67W7psIExrTURFTAbE86EO1pZqefOElsbW_B008n4H5OCoxajXiLaxftvJKQuB7D9UrACkLazMJAJbWK1nfMhYAoya_JyYZ3CAk9TsRC35hcUmoqWd5zl1cwcss2CQzehF4FqicLqfoTibldLpMkpsLcnJywJux77uIhcvDE-S1CAvl8WEfORoXw_5D5zXDdL_Kbcv_czj_683pa4-fTAnwFk8k-JIpv4GDZnNresC3iTPr_QEzZ8ilJMrWeJtJUBvv1_JUwbTLLKVzsBta1r5pdfzk_Q",
+      "e": "AQAB",
       "kid": "test-partner-2026",
-      "alg": "ES256",
+      "alg": "RS256",
       "use": "sig",
-      "kty": "EC"
+      "kty": "RSA"
     }
   ]
 }

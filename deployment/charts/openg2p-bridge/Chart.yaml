@@ -12,7 +12,6 @@ type: application
 #   Bumping the value below has no effect on CI-published charts; it is used only
 #   by a local `helm package` / `helm install .` that does not pass --version.
 version: 0.0.0-g2p5209
-appVersion: "develop"
 dependencies:
 - name: common
   repository: https://openg2p.github.io/openg2p-helm

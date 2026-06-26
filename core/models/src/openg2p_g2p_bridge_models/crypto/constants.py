@@ -1,17 +1,17 @@
 """Algorithm policy for local JWS signing/verification.
 
-Centralises which JWS algorithms the Bridge will accept so the choice is explicit
-(the old Keymanager-backed path pinned nothing and trusted whatever the JWS header
-declared). ES256 is the recommended baseline — small, fast, FIPS/HSM-friendly and
-universally supported. EdDSA is preferred for partners that can use it; PS256/RS256
-are kept for RSA-bound partners (RS256 is legacy/backward-compatible only).
+The Bridge supports **RS256 only** — an asymmetric algorithm (RSA public/private
+keys). Symmetric algorithms (the HMAC ``HS*`` family, which use a shared secret)
+and ``none`` are always rejected. The allowed set is still configurable per
+app/Helm, but defaults to RS256 alone.
 """
 
-# Default set of allowed JWS algorithms (asymmetric only). Override per app/Helm.
-DEFAULT_ALLOWED_ALGORITHMS = ("ES256", "EdDSA", "PS256", "RS256")
+# Default set of allowed JWS algorithms. RS256 only (asymmetric). Override per
+# app/Helm if a deployment ever needs more, but never add HS*/none.
+DEFAULT_ALLOWED_ALGORITHMS = ("RS256",)
 
-# Recommended default for the Bridge's own outbound signing key.
-DEFAULT_SIGNING_ALGORITHM = "ES256"
+# Default for the Bridge's own outbound signing key.
+DEFAULT_SIGNING_ALGORITHM = "RS256"
 
 
 def is_forbidden_algorithm(alg) -> bool:

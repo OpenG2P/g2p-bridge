@@ -31,6 +31,6 @@ class Settings(BaseSettings):
     # partner_keys_dir (one JWKS file per partner, named PARTNER_<MNEMONIC>.json).
     signature_validation_enabled: bool = False
     partner_keys_dir: str = "/etc/g2p-bridge/partner-keys"
-    # Comma-separated allowed JWS algorithms (asymmetric only). "none"/HMAC are
-    # always rejected regardless of this list.
-    signature_allowed_algorithms: str = "ES256,EdDSA,PS256,RS256"
+    # Comma-separated allowed JWS algorithms. RS256 only (asymmetric); "none" and
+    # HMAC (HS*) are always rejected regardless of this list.
+    signature_allowed_algorithms: str = "RS256"
