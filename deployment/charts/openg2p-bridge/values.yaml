@@ -181,7 +181,7 @@ g2pBridgeApi:
     name: ""
   image:
     repository: openg2p/openg2p-bridge-partner-api
-    tag: "develop"
+    tag: "1.0.0"
     pullPolicy: Always
   podSecurityContext:
     enabled: false
@@ -306,7 +306,7 @@ openg2pG2pBridgeBenePortalApi:
     name: ""
   image:
     repository: openg2p/openg2p-bridge-bene-portal-api
-    tag: "develop"
+    tag: "1.0.0"
     pullPolicy: Always
   podSecurityContext:
     enabled: false
@@ -418,7 +418,7 @@ g2pBridgeCeleryBeatProducers:
         - 'until nc -z {{ tpl .Values.global.redisInstallationName $ }} 6379; do echo "waiting for redis..."; sleep 3; done'
   image:
     repository: openg2p/openg2p-bridge-celery
-    tag: "develop"
+    tag: "1.0.0"
     pullPolicy: Always
 
   envVars:
@@ -504,7 +504,7 @@ g2pBridgeCeleryWorkers:
         - 'until nc -z {{ tpl .Values.global.redisInstallationName $ }} 6379; do echo "waiting for redis..."; sleep 3; done'
   image:
     repository: openg2p/openg2p-bridge-celery
-    tag: "develop"
+    tag: "1.0.0"
     pullPolicy: Always
 
   envVars:
@@ -738,7 +738,7 @@ exampleBankApi:
     name: ""
   image:
     repository: openg2p/openg2p-bridge-example-bank-api
-    tag: "develop"
+    tag: "1.0.0"
     pullPolicy: Always
   podSecurityContext:
     enabled: false
@@ -856,7 +856,7 @@ exampleBankCeleryBeat:
     name: ""
   image:
     repository: openg2p/openg2p-bridge-example-bank-celery-beat-producers
-    tag: "develop"
+    tag: "1.0.0"
     pullPolicy: Always
   podSecurityContext:
     enabled: false
@@ -937,7 +937,7 @@ exampleBankCeleryWorker:
     name: ""
   image:
     repository: openg2p/openg2p-bridge-example-bank-celery-workers
-    tag: "develop"
+    tag: "1.0.0"
     pullPolicy: Always
   podSecurityContext:
     enabled: false
@@ -997,7 +997,7 @@ sanity:
 
   image:
     repository: openg2p/openg2p-bridge-sanity
-    tag: develop
+    tag: 1.0.0
     pullPolicy: Always
 
   # L2 (end-to-end). false = L0 smoke + L1 contract only (no data). true = also
