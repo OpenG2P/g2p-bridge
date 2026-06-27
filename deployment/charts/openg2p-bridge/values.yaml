@@ -75,6 +75,9 @@ global:
   g2pBridgeSigningKeySecret: '{{ .Release.Name }}-signing-key'
   g2pBridgeSigningKeyKid: ""
   g2pBridgeSigningAlgorithm: RS256
+  # Turn outbound SPAR request signing on for a production deployment where SPAR
+  # enforces verification (the trial turns it on automatically via testPartner).
+  g2pBridgeSparSignRequestsEnabled: false
 
   # TEST/DEMO trial profile. When true (the default for the bundled trial
   # install), the chart onboards a well-known TEST-ONLY partner key (see the
@@ -566,7 +569,10 @@ g2pBridgeCeleryWorkers:
 
     # Read by SPARMapperClient (extensions/mapper-connectors/config.py), not G2PCONNECT_*.
     G2P_BRIDGE_MAPPER_CONNECTORS_SPAR_MAPPER_URL: '{{ .Values.global.g2pBridgeMapperBaseUrl }}/mapper/resolve'
-    G2P_BRIDGE_MAPPER_CONNECTORS_SPAR_MAPPER_API_SIGN_ENABLED: false
+    # Sign outbound resolve requests to SPAR when SPAR enforces verification —
+    # explicitly enabled, or on in the trial (testPartner) so the bundled SPAR
+    # (which trusts PARTNER_G2P_BRIDGE) verifies them out of the box.
+    G2P_BRIDGE_MAPPER_CONNECTORS_SPAR_MAPPER_API_SIGN_ENABLED: '{{ or .Values.global.g2pBridgeSparSignRequestsEnabled .Values.global.testPartnerEnabled }}'
     # Local (Keymanager-free) signing of outbound SPAR requests. Used only when
     # SPAR_MAPPER_API_SIGN_ENABLED is true; key mounted from a Secret (see below).
     G2P_BRIDGE_MAPPER_CONNECTORS_SIGNING_KEY_PATH: '{{ .Values.global.g2pBridgeSigningKeyDir }}/signing-key.json'
