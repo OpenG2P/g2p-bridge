@@ -1,0 +1,73 @@
+{{- if .Values.dbPasswordSync.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Name }}-db-password-sync
+  labels: {{- include "common.labels.standard" (dict "customLabels" .Values.commonLabels "context" $) | nindent 4 }}
+    app.kubernetes.io/component: db-password-sync
+  annotations:
+    # Commons Postgres is persistent, so DB roles survive uninstall/reinstall. But
+    # postgres-init only CREATEs missing roles — it never updates an existing role's
+    # password. After a Secret regen or a version reset, the role password drifts from
+    # the Secret, the app's startup `migrate` then fails to authenticate, and (because
+    # the image CMD runs `migrate && serve`) the pod crash-loops instead of silently
+    # serving an un-migrated DB. This hook re-syncs each role's password to its Secret
+    # BEFORE the app pods start, so migrate authenticates and the schema/seed is created.
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "5"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels: {{- include "common.labels.standard" (dict "customLabels" .Values.commonLabels "context" $) | nindent 8 }}
+        app.kubernetes.io/component: db-password-sync
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: sync
+          image: "{{ .Values.dbPasswordSync.image.repository }}:{{ .Values.dbPasswordSync.image.tag }}"
+          imagePullPolicy: {{ .Values.dbPasswordSync.image.pullPolicy }}
+          env:
+            - name: PGHOST
+              value: {{ tpl .Values.global.postgresqlHost $ | quote }}
+            - name: PGSUPERPASS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.dbPasswordSync.superuserSecret | quote }}
+                  key: {{ .Values.dbPasswordSync.superuserPasswordKey | quote }}
+            - name: BRIDGE_USER
+              value: {{ tpl .Values.global.bridgeDBUser $ | quote }}
+            - name: BRIDGE_PW
+              valueFrom:
+                secretKeyRef:
+                  name: {{ tpl .Values.global.bridgeDBSecret $ | quote }}
+                  key: {{ tpl .Values.global.bridgeDBUserPasswordKey $ | quote }}
+                  optional: true
+            - name: BANK_USER
+              value: {{ tpl .Values.global.exampleBankDBUser $ | quote }}
+            - name: BANK_PW
+              valueFrom:
+                secretKeyRef:
+                  name: {{ tpl .Values.global.exampleBankDBSecret $ | quote }}
+                  key: {{ tpl .Values.global.exampleBankDBUserPasswordKey $ | quote }}
+                  optional: true
+          command: ["sh", "-c"]
+          args:
+            - |
+              set -eu
+              export PGPASSWORD="$PGSUPERPASS"
+              # Only ALTER a role that already exists; on a fresh install the role may
+              # not be created yet (postgres-init makes it with the same Secret), so a
+              # missing role/Secret is a no-op here. format(%I,%L) safely quotes both.
+              sync() {
+                u="$1"; p="$2"
+                [ -n "$p" ] || { echo "no secret password for role '$u' yet; skipping"; return 0; }
+                echo "Syncing password for role '$u' ..."
+                psql -h "$PGHOST" -U postgres -d postgres -v ON_ERROR_STOP=1 \
+                  -c "DO \$do\$ BEGIN IF EXISTS (SELECT FROM pg_roles WHERE rolname='$u') THEN EXECUTE format('ALTER USER %I WITH PASSWORD %L', '$u', '$p'); END IF; END \$do\$;"
+              }
+              sync "$BRIDGE_USER" "${BRIDGE_PW:-}"
+              sync "$BANK_USER" "${BANK_PW:-}"
+              echo "DB role password sync complete."
+{{- end }}
