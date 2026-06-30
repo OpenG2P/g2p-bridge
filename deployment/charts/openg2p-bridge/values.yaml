@@ -619,11 +619,15 @@ g2pBridgeCeleryWorkers:
     G2P_BRIDGE_MAPPER_CONNECTORS_SPAR_MAPPER_API_SIGN_ENABLED: '{{ or .Values.global.g2pBridgeSparSignRequestsEnabled .Values.global.testPartnerEnabled }}'
     # JWS backend for the outbound signing helper (keymanager | local). For local,
     # the private key is the .p12 mounted below; password from the same Secret.
-    G2P_BRIDGE_MAPPER_CONNECTORS_CRYPTO_BACKEND: '{{ .Values.global.g2pBridgeCryptoBackend }}'
-    G2P_BRIDGE_MAPPER_CONNECTORS_CRYPTO_ALLOWED_ALGORITHMS: '{{ .Values.global.g2pBridgeCryptoAllowedAlgorithms }}'
-    G2P_BRIDGE_MAPPER_CONNECTORS_CRYPTO_SIGNING_KEY_PATH: '{{ .Values.global.g2pBridgeSigningKey.mountPath }}/{{ .Values.global.g2pBridgeSigningKey.secretKey }}'
-    G2P_BRIDGE_MAPPER_CONNECTORS_CRYPTO_SIGNING_KEY_KID: '{{ .Values.global.g2pBridgeSigningKeyKid }}'
-    G2P_BRIDGE_MAPPER_CONNECTORS_CRYPTO_SIGNING_ALGORITHM: '{{ .Values.global.g2pBridgeSigningAlgorithm }}'
+    # NOTE: the worker process runs run_celery.py, whose config singleton has env
+    # prefix g2p_bridge_celery_workers_. build_crypto_helper()/PyJWTCryptoHelper in
+    # fastapi-common read crypto_* from THAT singleton, so these MUST use the
+    # CELERY_WORKERS_ prefix (not MAPPER_CONNECTORS_, which the worker never reads).
+    G2P_BRIDGE_CELERY_WORKERS_CRYPTO_BACKEND: '{{ .Values.global.g2pBridgeCryptoBackend }}'
+    G2P_BRIDGE_CELERY_WORKERS_CRYPTO_ALLOWED_ALGORITHMS: '{{ .Values.global.g2pBridgeCryptoAllowedAlgorithms }}'
+    G2P_BRIDGE_CELERY_WORKERS_CRYPTO_SIGNING_KEY_PATH: '{{ .Values.global.g2pBridgeSigningKey.mountPath }}/{{ .Values.global.g2pBridgeSigningKey.secretKey }}'
+    G2P_BRIDGE_CELERY_WORKERS_CRYPTO_SIGNING_KEY_KID: '{{ .Values.global.g2pBridgeSigningKeyKid }}'
+    G2P_BRIDGE_CELERY_WORKERS_CRYPTO_SIGNING_ALGORITHM: '{{ .Values.global.g2pBridgeSigningAlgorithm }}'
     G2P_BRIDGE_CELERY_WORKERS_MAPPER_REQUEST_SENDER_ID: openg2p-g2p-bridge
 
     G2P_BRIDGE_CELERY_WORKERS_KEYMANAGER_API_BASE_URL: 'http://{{ .Values.global.keymanagerInstallationName }}/v1/keymanager'
@@ -732,7 +736,8 @@ g2pBridgeCeleryWorkers:
         optional: true
     # Password unlocking the outbound-signing .p12 (local backend). optional:true
     # lets the worker start when signing is off / no signing-key Secret present.
-    G2P_BRIDGE_MAPPER_CONNECTORS_CRYPTO_SIGNING_KEY_PASSWORD:
+    # CELERY_WORKERS_ prefix: read by crypto.py's config singleton in the worker.
+    G2P_BRIDGE_CELERY_WORKERS_CRYPTO_SIGNING_KEY_PASSWORD:
       secretKeyRef:
         name: '{{ tpl .Values.global.g2pBridgeSigningKey.secretName $ }}'
         key: '{{ .Values.global.g2pBridgeSigningKey.passwordSecretKey }}'
