@@ -142,13 +142,13 @@ questions:
 - variable: global.g2pBridgeSignatureValidationEnabled
   description: Verify a partner JWS signature on every Partner API request (partners must be onboarded first via Partner Certs)
   type: boolean
-  default: false
+  default: true
   label: Verify Partner Signatures
   group: Partner Signatures
 - variable: global.g2pBridgeSparSignRequestsEnabled
   description: Sign outbound resolve requests to SPAR (turn on when SPAR enforces signature verification)
   type: boolean
-  default: false
+  default: true
   label: Sign Requests to SPAR
   group: Partner Signatures
 - variable: global.g2pBridgeSigningKey.mode
@@ -188,21 +188,25 @@ questions:
   show_if: global.g2pBridgeCryptoBackend=local&&global.g2pBridgeSigningKey.mode!=demo
 
 # ---------------------------- Keymanager ----------------------------
+# Only relevant when the crypto backend is "keymanager" — hidden for "local".
 - variable: global.g2pBridgeKeymanagerAuthEnabled
   label: API Authentication Enabled
   description: Enables Keymanager API authentication.
   type: boolean
   group: Keymanager
+  show_if: global.g2pBridgeCryptoBackend=keymanager
 - variable: global.g2pBridgeKeymanagerAppId
   description: Keymanager Application ID for G2P Bridge
   type: string
   label: Keymanager App ID
   group: Keymanager
+  show_if: global.g2pBridgeCryptoBackend=keymanager
 - variable: global.keymanagerInstallationName
   description: In-cluster service name of Keymanager
   type: string
   label: Keymanager Service Name
   group: Keymanager
+  show_if: global.g2pBridgeCryptoBackend=keymanager
 
 # ------------------------------- SPAR -------------------------------
 - variable: global.g2pBridgeMapperBaseUrl

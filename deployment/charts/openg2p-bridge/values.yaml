@@ -57,10 +57,10 @@ global:
   # Key containing client password (keycloak-init uses "client_secret").
   g2pBridgeAuthClientSecretKey: 'client_secret'
 
-  # When true, the Bridge authenticates to Keymanager (client-credentials) using
-  # the g2p-bridge client. Disabled for now; enable in production together with
-  # keycloak-init.enabled below.
-  g2pBridgeSignatureValidationEnabled: false
+  # Verify partner JWS signatures on every Partner API request. ON by default
+  # (secure-by-default); set false only for an unauthenticated demo.
+  g2pBridgeSignatureValidationEnabled: true
+  # Keymanager-backend settings (used only when g2pBridgeCryptoBackend=keymanager).
   g2pBridgeKeymanagerAuthEnabled: false
   g2pBridgeKeymanagerAppId: OPENG2P_BRIDGE
 
@@ -75,8 +75,8 @@ global:
   g2pBridgeCryptoAllowedAlgorithms: "RS256"
 
   # Outbound request signing to SPAR (local backend) — the Bridge signs its resolve
-  # requests with its own private key (.p12). On automatically in the trial.
-  g2pBridgeSparSignRequestsEnabled: false
+  # requests with its own private key (.p12). ON by default.
+  g2pBridgeSparSignRequestsEnabled: true
   g2pBridgeSigningKeyKid: ""
   g2pBridgeSigningAlgorithm: "RS256"
   # The Bridge's outbound signing key (PKCS#12). Where it comes from (consent-
