@@ -6,8 +6,10 @@ RUN apk add --no-cache bash
 
 WORKDIR /app
 
-# Test runtime deps (kept in sync with test/sanity/pyproject.toml).
-RUN pip install --no-cache-dir pytest pytest-html httpx PyYAML
+# Test runtime deps (kept in sync with test/sanity/pyproject.toml). PyJWT[crypto]
+# (+ its cryptography dep) and orjson are used by sanity/signing.py to sign Partner
+# API requests as a detached JWS (local crypto backend trial).
+RUN pip install --no-cache-dir pytest pytest-html httpx PyYAML "PyJWT[crypto]>=2.8.0" "orjson>=3.9"
 
 # The suite itself.
 COPY test/sanity /app
