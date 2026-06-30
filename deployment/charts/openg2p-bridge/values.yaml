@@ -210,6 +210,21 @@ postgres-init:
       secret: '{{ tpl .Values.global.exampleBankDBSecret $ }}'
       secretUserPasswordKey: '{{ tpl .Values.global.exampleBankDBUserPasswordKey $ }}'
 
+# Re-sync DB role passwords to their Secrets before the app starts. postgres-init
+# only CREATEs missing roles (never updates an existing role's password), so on a
+# persistent commons-postgresql the role password can drift from the regenerated
+# Secret and the app's migrate fails to authenticate. This pre-upgrade hook fixes
+# that (idempotent; no-op when the role/secret is absent). See templates/db-password-sync.
+dbPasswordSync:
+  enabled: true
+  # Postgres superuser credentials (same source postgres-init uses).
+  superuserSecret: commons-postgresql
+  superuserPasswordKey: postgres-password
+  image:
+    repository: jbergknoff/postgresql-client
+    tag: latest
+    pullPolicy: IfNotPresent
+
 # ----------------------------- Superset analytics -----------------------------
 # Optional: create a read-only Postgres role for the platform Superset to connect
 # with, and publish its password in a Secret (the admin enters it once when

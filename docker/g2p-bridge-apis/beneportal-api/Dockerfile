@@ -29,5 +29,7 @@ ENV G2P_BRIDGE_HOST=0.0.0.0
 ENV G2P_BRIDGE_PORT=8000
 ENV G2P_BRIDGE_WORKER_TYPE=gunicorn
 
-CMD python3 -m openg2p_g2p_bridge_bene_portal_api.main migrate; \
+# `migrate &&` (not `;`): a failed migration must crash-loop the pod, not silently
+# serve an un-migrated DB (which previously masked DB-auth failures -> missing tables).
+CMD python3 -m openg2p_g2p_bridge_bene_portal_api.main migrate && \
     gunicorn "openg2p_g2p_bridge_bene_portal_api.main:app" --workers ${G2P_BRIDGE_NO_OF_WORKERS} --worker-class uvicorn.workers.UvicornWorker --bind ${G2P_BRIDGE_HOST}:${G2P_BRIDGE_PORT} --log-level info
