@@ -2,7 +2,7 @@ FROM python:3.12.11-alpine3.22
 
 # External OpenG2P library ref (not part of this repo). Override via build-arg /
 # workflow input. The g2p-bridge code itself is installed from local source.
-ARG FASTAPI_COMMON_REF=v1.1.5
+ARG FASTAPI_COMMON_REF=develop
 
 RUN apk add --no-cache --virtual .build-deps gcc libc-dev linux-headers make \
  && apk add --no-cache bash git gettext libpq-dev libmagic

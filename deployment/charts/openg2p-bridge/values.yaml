@@ -64,6 +64,80 @@ global:
   g2pBridgeKeymanagerAuthEnabled: false
   g2pBridgeKeymanagerAppId: OPENG2P_BRIDGE
 
+  # ── JWS sign/verify backend (openg2p-fastapi-common) ──────────────────────
+  # "keymanager" -> remote Keymanager service (the keymanager* settings above).
+  # "local"      -> in-process PyJWT: partner public certs verified from the
+  #                 partner_keys DB table; outbound signing with a .p12 keystore.
+  #                 No Keymanager/Keycloak dependency. This is the default and what
+  #                 the bundled trial exercises.
+  g2pBridgeCryptoBackend: local
+  # RS256 only (asymmetric); "none" and HMAC (HS*) are always rejected.
+  g2pBridgeCryptoAllowedAlgorithms: "RS256"
+
+  # Outbound request signing to SPAR (local backend) — the Bridge signs its resolve
+  # requests with its own private key (.p12). On automatically in the trial.
+  g2pBridgeSparSignRequestsEnabled: false
+  g2pBridgeSigningKeyKid: ""
+  g2pBridgeSigningAlgorithm: "RS256"
+  # The Bridge's outbound signing key (PKCS#12). Where it comes from (consent-
+  # manager pattern):
+  #   demo     -> bundled demo key in the chart (files/test-partner.p12) — PUBLIC,
+  #               TESTING ONLY. Default so the trial signs out of the box.
+  #   existing -> a Secret you upload via Rancher → Storage → Secrets (file upload);
+  #               set secretName to it. PRODUCTION. The chart creates no key material.
+  #   inline   -> the chart builds the Secret from p12Base64 + password below
+  #               (paste the .p12 base64 in the Rancher form). PRODUCTION.
+  g2pBridgeSigningKey:
+    mode: demo
+    demoPassword: testpartner
+    p12Base64: ""
+    password: ""
+    secretName: '{{ .Release.Name }}-signing-key'
+    secretKey: signing-key.p12
+    passwordSecretKey: password
+    mountPath: /etc/g2p-bridge/signing-key
+
+  # Production partner onboarding (seed-based, local backend) — each entry is
+  # upserted into the partner_keys table at migrate-time. Onboard a partner by
+  # appending their public certificate here (referenceId = PARTNER_<MNEMONIC>):
+  #   g2pBridgePartnerCerts:
+  #     - referenceId: PARTNER_MY_PSP
+  #       publicKey: |
+  #         -----BEGIN CERTIFICATE-----
+  #         ...
+  #         -----END CERTIFICATE-----
+  g2pBridgePartnerCerts: []
+
+  # TEST/DEMO trial profile. When true (the bundled-trial default), the chart seeds
+  # the committed test-partner cert (as PARTNER_TEST_SANITY / PARTNER_TRAINING),
+  # turns signature validation + SPAR signing ON, and drives the sanity suite's
+  # signing — all with the public demo key (files/test-partner.p12). The key is
+  # committed, so set this false for any real deployment.
+  testPartnerEnabled: true
+  testPartnerMnemonics:
+    - TEST_SANITY
+    - TRAINING
+  testPartnerCertPem: |
+    -----BEGIN CERTIFICATE-----
+    MIIDDzCCAfegAwIBAgIUJ5fj7XGtXGseT3bVOYPld+xhV/AwDQYJKoZIhvcNAQEL
+    BQAwFzEVMBMGA1UEAwwMdGVzdC1wYXJ0bmVyMB4XDTI2MDYzMDAxNTMyNloXDTM2
+    MDYyNzAxNTMyNlowFzEVMBMGA1UEAwwMdGVzdC1wYXJ0bmVyMIIBIjANBgkqhkiG
+    9w0BAQEFAAOCAQ8AMIIBCgKCAQEA4J/LXhIm69gtBeht8alcQ19DzPgmSwOH/R88
+    3T6881Q/V4iGAcqbE1lK1VwO1WTP2+AWglwd73g7xDDtqZWfOzeAH5B/VlgA4vLq
+    WsmO0pdXf7BLHkhryqzMORdurV5524EUNFRiQmIaAOYzx4jwqgMocCIUPZ83j/d9
+    +0KBi3ITJ8MfCA3QEuY3+XAyY/UbpxsPeZgrrK6cG7nI226yJJ17eUAEWBNErXrw
+    YZPPmGLx2lDNi84wbZg6YDBBNiUqXqoLPU/0OI7kEGv4NatKUJLGtzAO7f09dQ1R
+    9iVMFkqZPVMsJCzfURNAqSQPWfGriZOH2c/iaZPaYzcNybS/zwIDAQABo1MwUTAd
+    BgNVHQ4EFgQUYMNUj0/e3cN9hs2z7XxsXMqBl9IwHwYDVR0jBBgwFoAUYMNUj0/e
+    3cN9hs2z7XxsXMqBl9IwDwYDVR0TAQH/BAUwAwEB/zANBgkqhkiG9w0BAQsFAAOC
+    AQEAYcn5xHkBIXYjjHUJQT9vmQmB9VKqniyOo/enNhIjitPa+ejZ9IdiFrTQFb9K
+    WrD2DtTsDyygEo3Fz+MsLvUA0PLaCvJcv45gaU/vLxYwGgN+IYqvIyAKAwZxmNz7
+    ZbrY//Zu7HEckjyRkrakVZPw6Oi1QiRpA35V8q5zvfmqFIULMI4ZhIpw0tcSyk12
+    PPX3Xyqgtb9HlWt+izJacktr71ZrfEVuMpfk4MFwW2oyTJIOYr/0vI2m0ZENL0p8
+    4ZKyP9Xydc9E9emXaC+ARzB3PrEc8Ydd9VoBSftRakRpgSEFiD9v7/NMBvJI6pJV
+    ghl9hlfFpEIHXpmFoBASweRGEg==
+    -----END CERTIFICATE-----
+
   PBMSDBHostname: commons-postgresql
   PBMSDB: pbms_db
   PBMSDBUser: pbms_db_user
@@ -181,7 +255,7 @@ g2pBridgeApi:
     name: ""
   image:
     repository: openg2p/openg2p-bridge-partner-api
-    tag: "1.0.0"
+    tag: "develop"
     pullPolicy: Always
   podSecurityContext:
     enabled: false
@@ -220,10 +294,18 @@ g2pBridgeApi:
     G2P_BRIDGE_PORT: '{{ .Values.containerPort }}'
     G2P_BRIDGE_OPENAPI_ROOT_PATH: '{{ .Values.openapiRootPath }}'
 
+    # JWS backend selector (keymanager | local). The keymanager_* settings below
+    # are only used when backend=keymanager.
+    G2P_BRIDGE_CRYPTO_BACKEND: '{{ .Values.global.g2pBridgeCryptoBackend }}'
+    G2P_BRIDGE_CRYPTO_ALLOWED_ALGORITHMS: '{{ .Values.global.g2pBridgeCryptoAllowedAlgorithms }}'
+    # Local backend: partner public certs seeded into the partner_keys table at
+    # migrate-time (operator g2pBridgePartnerCerts + trial test partner).
+    G2P_BRIDGE_CRYPTO_PARTNER_CERTS: '{{ include "openg2p-bridge.partnerCertsJson" . }}'
     G2P_BRIDGE_JWT_VALIDATE_KEYMANAGER_APP_ID: '{{ .Values.global.g2pBridgeKeymanagerAppId }}'
     G2P_BRIDGE_KEYMANAGER_API_BASE_URL: "http://{{ .Values.global.keymanagerInstallationName }}/v1/keymanager"
-    # Inbound partner JWT signature validation on Partner API endpoints.
-    G2P_BRIDGE_SIGNATURE_VALIDATION_ENABLED: '{{ .Values.global.g2pBridgeSignatureValidationEnabled }}'
+    # Inbound partner JWT signature validation on Partner API endpoints. On when
+    # explicitly enabled OR when the trial test partner is onboarded.
+    G2P_BRIDGE_SIGNATURE_VALIDATION_ENABLED: '{{ or .Values.global.g2pBridgeSignatureValidationEnabled .Values.global.testPartnerEnabled }}'
     # Outbound Keymanager API authentication (OAuth client credentials).
     G2P_BRIDGE_KEYMANAGER_AUTH_ENABLED: '{{ .Values.global.g2pBridgeKeymanagerAuthEnabled }}'
     G2P_BRIDGE_OAUTH_ENABLED: '{{ .Values.global.g2pBridgeKeymanagerAuthEnabled }}'
@@ -306,7 +388,7 @@ openg2pG2pBridgeBenePortalApi:
     name: ""
   image:
     repository: openg2p/openg2p-bridge-bene-portal-api
-    tag: "1.0.0"
+    tag: "develop"
     pullPolicy: Always
   podSecurityContext:
     enabled: false
@@ -418,7 +500,7 @@ g2pBridgeCeleryBeatProducers:
         - 'until nc -z {{ tpl .Values.global.redisInstallationName $ }} 6379; do echo "waiting for redis..."; sleep 3; done'
   image:
     repository: openg2p/openg2p-bridge-celery
-    tag: "1.0.0"
+    tag: "develop"
     pullPolicy: Always
 
   envVars:
@@ -504,7 +586,7 @@ g2pBridgeCeleryWorkers:
         - 'until nc -z {{ tpl .Values.global.redisInstallationName $ }} 6379; do echo "waiting for redis..."; sleep 3; done'
   image:
     repository: openg2p/openg2p-bridge-celery
-    tag: "1.0.0"
+    tag: "develop"
     pullPolicy: Always
 
   envVars:
@@ -531,7 +613,17 @@ g2pBridgeCeleryWorkers:
 
     # Read by SPARMapperClient (extensions/mapper-connectors/config.py), not G2PCONNECT_*.
     G2P_BRIDGE_MAPPER_CONNECTORS_SPAR_MAPPER_URL: '{{ .Values.global.g2pBridgeMapperBaseUrl }}/mapper/resolve'
-    G2P_BRIDGE_MAPPER_CONNECTORS_SPAR_MAPPER_API_SIGN_ENABLED: false
+    # Sign outbound resolve requests to SPAR when SPAR enforces verification —
+    # explicitly enabled, or on in the trial (test partner) so the bundled SPAR
+    # (which trusts PARTNER_G2P_BRIDGE) verifies them out of the box.
+    G2P_BRIDGE_MAPPER_CONNECTORS_SPAR_MAPPER_API_SIGN_ENABLED: '{{ or .Values.global.g2pBridgeSparSignRequestsEnabled .Values.global.testPartnerEnabled }}'
+    # JWS backend for the outbound signing helper (keymanager | local). For local,
+    # the private key is the .p12 mounted below; password from the same Secret.
+    G2P_BRIDGE_MAPPER_CONNECTORS_CRYPTO_BACKEND: '{{ .Values.global.g2pBridgeCryptoBackend }}'
+    G2P_BRIDGE_MAPPER_CONNECTORS_CRYPTO_ALLOWED_ALGORITHMS: '{{ .Values.global.g2pBridgeCryptoAllowedAlgorithms }}'
+    G2P_BRIDGE_MAPPER_CONNECTORS_CRYPTO_SIGNING_KEY_PATH: '{{ .Values.global.g2pBridgeSigningKey.mountPath }}/{{ .Values.global.g2pBridgeSigningKey.secretKey }}'
+    G2P_BRIDGE_MAPPER_CONNECTORS_CRYPTO_SIGNING_KEY_KID: '{{ .Values.global.g2pBridgeSigningKeyKid }}'
+    G2P_BRIDGE_MAPPER_CONNECTORS_CRYPTO_SIGNING_ALGORITHM: '{{ .Values.global.g2pBridgeSigningAlgorithm }}'
     G2P_BRIDGE_CELERY_WORKERS_MAPPER_REQUEST_SENDER_ID: openg2p-g2p-bridge
 
     G2P_BRIDGE_CELERY_WORKERS_KEYMANAGER_API_BASE_URL: 'http://{{ .Values.global.keymanagerInstallationName }}/v1/keymanager'
@@ -638,6 +730,25 @@ g2pBridgeCeleryWorkers:
         name: '{{ tpl .Values.global.g2pBridgeAuthClientSecret $ }}'
         key: '{{ tpl .Values.global.g2pBridgeAuthClientSecretKey $ }}'
         optional: true
+    # Password unlocking the outbound-signing .p12 (local backend). optional:true
+    # lets the worker start when signing is off / no signing-key Secret present.
+    G2P_BRIDGE_MAPPER_CONNECTORS_CRYPTO_SIGNING_KEY_PASSWORD:
+      secretKeyRef:
+        name: '{{ tpl .Values.global.g2pBridgeSigningKey.secretName $ }}'
+        key: '{{ .Values.global.g2pBridgeSigningKey.passwordSecretKey }}'
+        optional: true
+
+  # Outbound signing key (.p12), mounted read-only from the signing-key Secret.
+  # optional:true lets the worker start with the mount absent (signing off).
+  extraVolumes:
+    - name: signing-key
+      secret:
+        secretName: '{{ tpl .Values.global.g2pBridgeSigningKey.secretName $ }}'
+        optional: true
+  extraVolumeMounts:
+    - name: signing-key
+      mountPath: '{{ .Values.global.g2pBridgeSigningKey.mountPath }}'
+      readOnly: true
 
   postgresCheckerInit:
     enabled: true
@@ -738,7 +849,7 @@ exampleBankApi:
     name: ""
   image:
     repository: openg2p/openg2p-bridge-example-bank-api
-    tag: "1.0.0"
+    tag: "develop"
     pullPolicy: Always
   podSecurityContext:
     enabled: false
@@ -856,7 +967,7 @@ exampleBankCeleryBeat:
     name: ""
   image:
     repository: openg2p/openg2p-bridge-example-bank-celery-beat-producers
-    tag: "1.0.0"
+    tag: "develop"
     pullPolicy: Always
   podSecurityContext:
     enabled: false
@@ -937,7 +1048,7 @@ exampleBankCeleryWorker:
     name: ""
   image:
     repository: openg2p/openg2p-bridge-example-bank-celery-workers
-    tag: "1.0.0"
+    tag: "develop"
     pullPolicy: Always
   podSecurityContext:
     enabled: false
@@ -997,7 +1108,7 @@ sanity:
 
   image:
     repository: openg2p/openg2p-bridge-sanity
-    tag: 1.0.0
+    tag: "develop"
     pullPolicy: Always
 
   # L2 (end-to-end). false = L0 smoke + L1 contract only (no data). true = also

@@ -15,6 +15,12 @@ import yaml
 
 _DEFAULT_BASE_DOMAIN = "openg2p.org"
 
+# Committed TEST-ONLY signing keystore (.p12) used to sign Partner API requests
+# when the Bridge runs the local crypto backend with signature validation on (the
+# trial default). Resolves to <repo>/test/keys/test-partner.p12 for a local run;
+# overridden in-cluster via SANITY_SIGNING_KEY_PATH (the chart mounts it).
+_DEFAULT_SIGNING_KEY = str(Path(__file__).resolve().parents[2] / "keys" / "test-partner.p12")
+
 
 @dataclass
 class Config:
@@ -65,6 +71,15 @@ class Config:
     disbursement_frequency: str = "Monthly"
 
     keymanager_auth_enabled: bool = False
+
+    # Partner API request signing (local crypto backend). When sign_requests=true
+    # the suite signs every Bridge Partner API request with the .p12 below — set by
+    # the chart in the local-backend trial. Leave false against an unsigned Bridge.
+    sign_requests: bool = False
+    signing_key_path: str = _DEFAULT_SIGNING_KEY
+    signing_key_password: str = "testpartner"
+    signing_key_kid: str = ""  # blank -> derived from the cert thumbprint
+    signing_algorithm: str = "RS256"
 
     # Bene-Portal API tests. Disabled for now — the bene-portal enforces OIDC auth
     # and the suite does not yet authenticate (calls return 401). Enable once the

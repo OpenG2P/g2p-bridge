@@ -25,7 +25,7 @@ on:
     inputs:
       fastapi_common_ref:
         description: "openg2p-fastapi-common git ref (tag/branch)"
-        default: "v1.1.5"
+        default: "develop"
         type: string
       spar_ref:
         description: "openg2p-spar git ref (tag/branch) for openg2p-spar-models"
@@ -69,7 +69,7 @@ jobs:
           push: true
           platforms: linux/amd64
           build-args: |
-            FASTAPI_COMMON_REF=${{ inputs.fastapi_common_ref || 'v1.1.5' }}
+            FASTAPI_COMMON_REF=${{ inputs.fastapi_common_ref || 'develop' }}
             SPAR_REF=${{ inputs.spar_ref || '2.0' }}
           tags: ${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.tag }}
           labels: |

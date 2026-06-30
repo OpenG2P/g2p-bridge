@@ -4,7 +4,7 @@ FROM python:3.12.11-alpine3.22
 # workflow input. The g2p-bridge code (core + extensions) is installed from
 # local source. openg2p-spar-models is only required by the mapper-connectors
 # extension and is the one git-only external dependency.
-ARG FASTAPI_COMMON_REF=v1.1.5
+ARG FASTAPI_COMMON_REF=develop
 ARG SPAR_REF=2.0
 
 RUN apk add --no-cache --virtual .build-deps gcc libc-dev linux-headers make \

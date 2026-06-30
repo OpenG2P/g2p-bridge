@@ -129,6 +129,64 @@ questions:
   label: OIDC Client Secret Key
   group: Keycloak
 
+# ------------------------ Partner Signatures ------------------------
+- variable: global.g2pBridgeCryptoBackend
+  description: "JWS sign/verify backend. local = in-process PyJWT (.p12 + partner_keys DB, no Keymanager); keymanager = remote Keymanager service."
+  type: enum
+  options:
+    - local
+    - keymanager
+  default: local
+  label: Crypto Backend
+  group: Partner Signatures
+- variable: global.g2pBridgeSignatureValidationEnabled
+  description: Verify a partner JWS signature on every Partner API request (partners must be onboarded first via Partner Certs)
+  type: boolean
+  default: false
+  label: Verify Partner Signatures
+  group: Partner Signatures
+- variable: global.g2pBridgeSparSignRequestsEnabled
+  description: Sign outbound resolve requests to SPAR (turn on when SPAR enforces signature verification)
+  type: boolean
+  default: false
+  label: Sign Requests to SPAR
+  group: Partner Signatures
+- variable: global.g2pBridgeSigningKey.mode
+  description: "Source of the Bridge's outbound signing .p12 (local backend). demo = bundled demo key (testing only); existing = a Secret you uploaded via Storage → Secrets (production); inline = paste the .p12 base64 below."
+  type: enum
+  options:
+    - demo
+    - existing
+    - inline
+  default: demo
+  label: Signing Key Source
+  group: Partner Signatures
+  show_if: global.g2pBridgeCryptoBackend=local
+- variable: global.g2pBridgeSigningKey.secretName
+  description: Name of the existing Secret holding the .p12 (key signing-key.p12) and its password (key password). Create it via Storage → Secrets with a file upload.
+  type: string
+  label: Existing Signing Secret
+  group: Partner Signatures
+  show_if: global.g2pBridgeCryptoBackend=local&&global.g2pBridgeSigningKey.mode=existing
+- variable: global.g2pBridgeSigningKey.p12Base64
+  description: Base64-encoded contents of your .p12 file (paste it here).
+  type: multiline
+  label: Signing .p12 (base64)
+  group: Partner Signatures
+  show_if: global.g2pBridgeCryptoBackend=local&&global.g2pBridgeSigningKey.mode=inline
+- variable: global.g2pBridgeSigningKey.password
+  description: Password that unlocks the .p12 keystore
+  type: password
+  label: Signing .p12 Password
+  group: Partner Signatures
+  show_if: global.g2pBridgeCryptoBackend=local&&global.g2pBridgeSigningKey.mode=inline
+- variable: global.g2pBridgeSigningKeyKid
+  description: Optional kid label for outbound signatures; leave blank to use the certificate's SHA-256 thumbprint.
+  type: string
+  label: Signing Key ID (kid)
+  group: Partner Signatures
+  show_if: global.g2pBridgeCryptoBackend=local&&global.g2pBridgeSigningKey.mode!=demo
+
 # ---------------------------- Keymanager ----------------------------
 - variable: global.g2pBridgeKeymanagerAuthEnabled
   label: API Authentication Enabled

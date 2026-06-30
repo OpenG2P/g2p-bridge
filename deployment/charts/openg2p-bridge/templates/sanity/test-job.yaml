@@ -26,20 +26,35 @@ spec:
       {{- with .Values.global.imagePullSecrets }}
       imagePullSecrets: {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- if $s.viewer.enabled }}
+      {{- $signing := and (eq .Values.global.g2pBridgeCryptoBackend "local") .Values.global.testPartnerEnabled }}
+      {{- if or $s.viewer.enabled $signing }}
       volumes:
+        {{- if $s.viewer.enabled }}
         - name: results
           persistentVolumeClaim:
             claimName: {{ .Release.Name }}-sanity-results
+        {{- end }}
+        {{- if $signing }}
+        - name: signing-key
+          secret:
+            secretName: {{ .Release.Name }}-test-partner-signing
+        {{- end }}
       {{- end }}
       containers:
         - name: sanity
           image: "{{ $s.image.repository }}:{{ $s.image.tag }}"
           imagePullPolicy: {{ $s.image.pullPolicy }}
-          {{- if $s.viewer.enabled }}
+          {{- if or $s.viewer.enabled $signing }}
           volumeMounts:
+            {{- if $s.viewer.enabled }}
             - name: results
               mountPath: /results
+            {{- end }}
+            {{- if $signing }}
+            - name: signing-key
+              mountPath: /etc/sanity/signing
+              readOnly: true
+            {{- end }}
           {{- end }}
           resources: {{- toYaml $s.resources | nindent 12 }}
           env:
@@ -74,6 +89,16 @@ spec:
             # If inbound signature validation is on, the write tests self-skip.
             - name: SANITY_KEYMANAGER_AUTH_ENABLED
               value: {{ .Values.global.g2pBridgeKeymanagerAuthEnabled | quote }}
+            {{- if $signing }}
+            # Local backend trial: sign Partner API requests as the test partner
+            # with the bundled DEMO .p12 (independent of the Bridge's outbound key).
+            - name: SANITY_SIGN_REQUESTS
+              value: "true"
+            - name: SANITY_SIGNING_KEY_PATH
+              value: "/etc/sanity/signing/test-partner.p12"
+            - name: SANITY_SIGNING_KEY_PASSWORD
+              value: {{ .Values.global.g2pBridgeSigningKey.demoPassword | quote }}
+            {{- end }}
             - name: SANITY_CLEANUP_ON_TEARDOWN
               value: "true"
             - name: SANITY_RESULTS_DIR

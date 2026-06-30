@@ -1,4 +1,26 @@
 {{/*
+Build the JSON list of partner certs seeded into the partner_keys table at
+migrate-time (local crypto backend): operator-provided global.g2pBridgePartnerCerts
+plus, when the trial test partner is enabled, the committed test cert under
+PARTNER_<MNEMONIC> for each global.testPartnerMnemonics. Compact JSON (PEM newlines
+escaped) for the G2P_BRIDGE_CRYPTO_PARTNER_CERTS env var. Reads global only, so it
+works from the component-scoped env render context.
+*/}}
+{{- define "openg2p-bridge.partnerCertsJson" -}}
+{{- $g := .Values.global -}}
+{{- $certs := list -}}
+{{- range $g.g2pBridgePartnerCerts -}}
+{{- $certs = append $certs (dict "reference_id" .referenceId "public_key" .publicKey) -}}
+{{- end -}}
+{{- if $g.testPartnerEnabled -}}
+{{- range $g.testPartnerMnemonics -}}
+{{- $certs = append $certs (dict "reference_id" (printf "PARTNER_%s" .) "public_key" $g.testPartnerCertPem) -}}
+{{- end -}}
+{{- end -}}
+{{- $certs | toJson -}}
+{{- end -}}
+
+{{/*
 Create the name of the service account to use
 */}}
 {{- define "g2pBridgeApi.serviceAccountName" -}}

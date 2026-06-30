@@ -11,8 +11,7 @@ type: application
 #       N.N.N    -> N.N.N                          (frozen release, no suffix)
 #   Bumping the value below has no effect on CI-published charts; it is used only
 #   by a local `helm package` / `helm install .` that does not pass --version.
-version: 1.0.0
-appVersion: "develop"
+version: 0.0.0-develop
 dependencies:
 - name: common
   repository: https://openg2p.github.io/openg2p-helm
