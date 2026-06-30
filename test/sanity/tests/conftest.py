@@ -77,23 +77,32 @@ def run_ns(config) -> RunNamespace:
 # --------------------------------------------------------------------------- #
 # HTTP clients
 # --------------------------------------------------------------------------- #
+# Detached-JWS signer (the committed TEST key). Shared by the Bridge and SPAR
+# clients so both sign when the target enforces validation: the Bridge Partner API
+# verifies against PARTNER_TEST_SANITY, and SPAR (when JWT auth is on) verifies the
+# direct link/unlink seeding against PARTNER_TEST_SANITY too — both seeded with this
+# same test cert.
 @pytest.fixture(scope="session")
-def bridge(config):
-    signer = None
-    if config.sign_requests:
-        candidate = RequestSigner(
-            config.signing_key_path,
-            password=config.signing_key_password,
-            kid=config.signing_key_kid,
-            algorithm=config.signing_algorithm,
-        )
-        signer = candidate if candidate.available else None
+def request_signer(config):
+    if not config.sign_requests:
+        return None
+    candidate = RequestSigner(
+        config.signing_key_path,
+        password=config.signing_key_password,
+        kid=config.signing_key_kid,
+        algorithm=config.signing_algorithm,
+    )
+    return candidate if candidate.available else None
+
+
+@pytest.fixture(scope="session")
+def bridge(config, request_signer):
     c = BridgeClient(
         config.bridge_base_url,
         verify_tls=config.verify_tls,
         timeout=config.request_timeout_seconds,
         sender=config.test_prefix,
-        signer=signer,
+        signer=request_signer,
     )
     yield c
     c.close()
@@ -124,12 +133,13 @@ def example_bank(config):
 
 
 @pytest.fixture(scope="session")
-def spar(config):
+def spar(config, request_signer):
     c = SparClient(
         config.spar_mapper_base_url,
         verify_tls=config.verify_tls,
         timeout=config.request_timeout_seconds,
         sender=config.test_prefix,
+        signer=request_signer,
     )
     yield c
     c.close()
@@ -174,22 +184,14 @@ class SeededLinks:
         if not self.entries:
             return
         unlink_reqs = [
-            seed.unlink_request(
-                reference_id=e["reference_id"], beneficiary_id=e["beneficiary_id"]
-            )
+            seed.unlink_request(reference_id=e["reference_id"], beneficiary_id=e["beneficiary_id"])
             for e in self.entries
         ]
         try:
-            status, _ = self._spar.unlink(
-                self._ns.request_id(), self._ns.run_id, unlink_reqs
-            )
-            _logger.info(
-                "SPAR unlink of %d entries (HTTP %s)", len(unlink_reqs), status
-            )
+            status, _ = self._spar.unlink(self._ns.request_id(), self._ns.run_id, unlink_reqs)
+            _logger.info("SPAR unlink of %d entries (HTTP %s)", len(unlink_reqs), status)
         except Exception as exc:  # noqa: BLE001
-            _logger.error(
-                "SPAR unlink failed: %s (manifest retained for manual teardown)", exc
-            )
+            _logger.error("SPAR unlink failed: %s (manifest retained for manual teardown)", exc)
 
 
 @pytest.fixture(scope="session")

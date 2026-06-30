@@ -73,19 +73,13 @@ class BridgeClient(_Base):
         return self.get("/ping")
 
     def _post(self, path: str, request_id: str, payload: Any) -> tuple[int, Any]:
-        return self.post_json(
-            path, g2p.envelope(request_id, payload, sender=self.sender)
-        )
+        return self.post_json(path, g2p.envelope(request_id, payload, sender=self.sender))
 
-    def create_envelopes(
-        self, request_id: str, payloads: list[dict]
-    ) -> tuple[int, Any]:
+    def create_envelopes(self, request_id: str, payloads: list[dict]) -> tuple[int, Any]:
         return self._post("/create_disbursement_envelopes", request_id, payloads)
 
     def cancel_envelope(self, request_id: str, envelope_id: str) -> tuple[int, Any]:
-        return self._post(
-            "/cancel_disbursement_envelope", request_id, [{"id": envelope_id}]
-        )
+        return self._post("/cancel_disbursement_envelope", request_id, [{"id": envelope_id}])
 
     def amend_envelope(self, request_id: str, payload: dict) -> tuple[int, Any]:
         return self._post("/amend_disbursement_envelope", request_id, [payload])
@@ -95,24 +89,14 @@ class BridgeClient(_Base):
     ) -> tuple[int, Any]:
         # Supplying disbursement_batch_control_id lets the caller correlate/poll
         # the batch (the API does not echo a generated id back).
-        body_extra = (
-            {"disbursement_batch_control_id": batch_control_id}
-            if batch_control_id
-            else None
-        )
-        env = g2p.envelope(
-            request_id, payloads, sender=self.sender, body_extra=body_extra
-        )
+        body_extra = {"disbursement_batch_control_id": batch_control_id} if batch_control_id else None
+        env = g2p.envelope(request_id, payloads, sender=self.sender, body_extra=body_extra)
         return self.post_json("/create_disbursements", env)
 
     def cancel_disbursements(self, request_id: str, ids: list[str]) -> tuple[int, Any]:
-        return self._post(
-            "/cancel_disbursements", request_id, [{"disbursement_id": i} for i in ids]
-        )
+        return self._post("/cancel_disbursements", request_id, [{"disbursement_id": i} for i in ids])
 
-    def get_disbursement_status(
-        self, request_id: str, ids: list[str]
-    ) -> tuple[int, Any]:
+    def get_disbursement_status(self, request_id: str, ids: list[str]) -> tuple[int, Any]:
         return self._post("/get_disbursement_status", request_id, ids)
 
     def get_envelope_status(self, request_id: str, envelope_id: str) -> tuple[int, Any]:
@@ -121,9 +105,7 @@ class BridgeClient(_Base):
     def get_batch_control(self, request_id: str, envelope_id: str) -> tuple[int, Any]:
         return self._post("/get_disbursement_batch_control", request_id, envelope_id)
 
-    def upload_mt940(
-        self, file_bytes: bytes, filename: str = "statement.mt940"
-    ) -> tuple[int, Any]:
+    def upload_mt940(self, file_bytes: bytes, filename: str = "statement.mt940") -> tuple[int, Any]:
         r = self._http.post(
             self.base_url + "/upload_mt940",
             files={"statement_file": (filename, file_bytes, "text/plain")},
@@ -146,9 +128,7 @@ class BenePortalClient(_Base):
             g2p.envelope(request_id, payload, sender=self.sender),
         )
 
-    def get_disbursement_summary_till_date(
-        self, request_id: str, payload: dict
-    ) -> tuple[int, Any]:
+    def get_disbursement_summary_till_date(self, request_id: str, payload: dict) -> tuple[int, Any]:
         return self.post_json(
             "/disbursement/get_disbursement_summary_till_date",
             g2p.envelope(request_id, payload, sender=self.sender),
@@ -161,9 +141,7 @@ class ExampleBankClient(_Base):
     def ping(self) -> httpx.Response:
         return self.get("/ping")
 
-    def check_funds(
-        self, account: str, currency: str, amount: float
-    ) -> tuple[int, Any]:
+    def check_funds(self, account: str, currency: str, amount: float) -> tuple[int, Any]:
         return self.post_json(
             "/check_funds",
             {
@@ -173,9 +151,7 @@ class ExampleBankClient(_Base):
             },
         )
 
-    def block_funds(
-        self, account: str, currency: str, amount: float
-    ) -> tuple[int, Any]:
+    def block_funds(self, account: str, currency: str, amount: float) -> tuple[int, Any]:
         return self.post_json(
             "/block_funds",
             {
@@ -185,9 +161,7 @@ class ExampleBankClient(_Base):
             },
         )
 
-    def generate_account_statement(
-        self, program_account_number: str
-    ) -> tuple[int, Any]:
+    def generate_account_statement(self, program_account_number: str) -> tuple[int, Any]:
         return self.post_json(
             "/generate_account_statement",
             {"program_account_number": program_account_number},
@@ -205,21 +179,13 @@ class ExampleBankClient(_Base):
 class SparClient(_Base):
     """SPAR Mapper Partner API — used to seed/clean ID->FA links."""
 
-    def link(
-        self, request_id: str, transaction_id: str, link_requests: list[dict]
-    ) -> tuple[int, Any]:
+    def link(self, request_id: str, transaction_id: str, link_requests: list[dict]) -> tuple[int, Any]:
         payload = {"transaction_id": transaction_id, "link_request": link_requests}
-        return self.post_json(
-            "/link", g2p.envelope(request_id, payload, sender=self.sender)
-        )
+        return self.post_json("/link", g2p.envelope(request_id, payload, sender=self.sender))
 
-    def unlink(
-        self, request_id: str, transaction_id: str, unlink_requests: list[dict]
-    ) -> tuple[int, Any]:
+    def unlink(self, request_id: str, transaction_id: str, unlink_requests: list[dict]) -> tuple[int, Any]:
         payload = {"transaction_id": transaction_id, "unlink_request": unlink_requests}
-        return self.post_json(
-            "/unlink", g2p.envelope(request_id, payload, sender=self.sender)
-        )
+        return self.post_json("/unlink", g2p.envelope(request_id, payload, sender=self.sender))
 
 
 def poll_until(
@@ -245,9 +211,7 @@ def poll_until(
                 _logger.info("poll '%s': satisfied on attempt %d", description, attempt)
                 return True, last
         except Exception as exc:  # noqa: BLE001 - polling is best-effort
-            _logger.warning(
-                "poll '%s' attempt %d raised: %s", description, attempt, exc
-            )
+            _logger.warning("poll '%s' attempt %d raised: %s", description, attempt, exc)
         if time.monotonic() >= deadline:
             _logger.error("poll '%s': timed out after %ds", description, timeout)
             return False, last
