@@ -1,7 +1,63 @@
 {
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Deterministic request id + timestamp, referenced by the body templates, so the",
+          "// signed bytes equal what Postman sends.",
+          "pm.collectionVariables.set('request_id', pm.variables.replaceIn('{{$guid}}'));",
+          "pm.collectionVariables.set('request_timestamp', new Date().toISOString());",
+          "",
+          "if (String(pm.variables.get('sign_requests')) !== 'true') return;",
+          "var raw = pm.request.body && pm.request.body.raw;",
+          "if (!raw) return;",
+          "var reqUrl = pm.variables.replaceIn(pm.request.url.toString());",
+          "var bridgeBase = pm.variables.replaceIn('{{bridge_base_url}}');",
+          "if (reqUrl.indexOf(bridgeBase) !== 0) return; // sign only Bridge Partner API calls",
+          "",
+          "function canonical(o) {",
+          "  if (Array.isArray(o)) return '[' + o.map(canonical).join(',') + ']';",
+          "  if (o && typeof o === 'object') {",
+          "    return '{' + Object.keys(o).sort().map(function (k) {",
+          "      return JSON.stringify(k) + ':' + canonical(o[k]);",
+          "    }).join(',') + '}';",
+          "  }",
+          "  return JSON.stringify(o);",
+          "}",
+          "",
+          "function doSign() {",
+          "  var b64u = function (s) { return hextob64u(rstrtohex(s)); };",
+          "  var body = JSON.parse(pm.variables.replaceIn(raw));",
+          "  var key = KEYUTIL.getKey(pm.variables.get('signing_private_pem'));",
+          "  var header = { alg: 'RS256', kid: pm.variables.get('signing_kid') };",
+          "  var p1 = b64u(JSON.stringify(header));",
+          "  var p2 = b64u(canonical(body));",
+          "  var sig = new KJUR.crypto.Signature({ alg: 'SHA256withRSA' });",
+          "  sig.init(key); sig.updateString(p1 + '.' + p2);",
+          "  var p3 = hextob64u(sig.sign());",
+          "  pm.request.headers.upsert({ key: 'Signature', value: p1 + '..' + p3 });",
+          "}",
+          "",
+          "var cached = pm.collectionVariables.get('_jsrsasign_src');",
+          "if (cached) { eval(cached); doSign(); return; }",
+          "return new Promise(function (resolve) {",
+          "  pm.sendRequest(pm.variables.get('jsrsasign_url'), function (err, res) {",
+          "    if (err || !res) { console.log('jsrsasign load failed; sending unsigned:', err); return resolve(); }",
+          "    var src = res.text();",
+          "    pm.collectionVariables.set('_jsrsasign_src', src);",
+          "    try { eval(src); doSign(); } catch (e) { console.log('signing error:', e); }",
+          "    resolve();",
+          "  });",
+          "});"
+        ]
+      }
+    }
+  ],
   "info": {
     "name": "G2P Bridge - API Walkthrough",
-    "description": "A guided, manual walkthrough of the G2P Bridge disbursement APIs (digital cash), for implementers who have installed G2P Bridge + SPAR + the Example Bank. Seed data comes from `beneficiaries.csv` (edit it; change the schedule date / amounts as you like). Auth is assumed disabled.\n\nRun the six folders in order. Folders 3 and 6 are DATA-DRIVEN: run them from the Collection Runner with `beneficiaries.csv` as the data file. Folder 5 is meant to be RE-RUN repeatedly while the asynchronous pipeline advances.\n\nFull instructions: GitBook -> Developer Zone -> API Walkthrough.",
+    "description": "A guided, manual walkthrough of the G2P Bridge disbursement APIs (digital cash), for implementers who have installed G2P Bridge + SPAR + the Example Bank. Seed data comes from `beneficiaries.csv` (edit it; change the schedule date / amounts as you like).\n\nPartner API requests are SIGNED by default (detached JWS in the `Signature` header) with the committed TEST-ONLY key, matching the trial Bridge's local crypto backend. Set `sign_requests=false` in the environment to target an unsigned Bridge.\n\nRun the six folders in order. Folders 3 and 6 are DATA-DRIVEN: run them from the Collection Runner with `beneficiaries.csv` as the data file. Folder 5 is meant to be RE-RUN repeatedly while the asynchronous pipeline advances.\n\nFull instructions: GitBook -> Developer Zone -> API Walkthrough.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -115,7 +171,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n\n  \"request_header\": {\n    \"sender_app_mnemonic\": \"{{sender_app}}\",\n    \"sender_app_url\": \"{{sender_app_url}}\",\n    \"request_id\": \"{{$guid}}\",\n    \"request_timestamp\": \"{{$isoTimestamp}}\",\n    \"instance_id\": null\n  },\n  \"request_body\": {\n    \"pagination_request\": null,\n    \"request_payload\": [\n      {\n        \"benefit_program_id\": {{program_id}},\n        \"benefit_program_mnemonic\": \"{{program_mnemonic}}\",\n        \"benefit_program_description\": \"API walkthrough training program\",\n        \"target_registry\": \"{{target_registry}}\",\n        \"benefit_code_id\": {{benefit_code_id}},\n        \"benefit_code_mnemonic\": \"{{benefit_code_mnemonic}}\",\n        \"benefit_code_description\": \"Digital cash training\",\n        \"benefit_type\": \"CASH_DIGITAL\",\n        \"disbursement_cycle_id\": {{cycle_id}},\n        \"disbursement_frequency\": \"{{frequency}}\",\n        \"cycle_code_mnemonic\": \"{{program_mnemonic}}_CYCLE\",\n        \"number_of_beneficiaries\": {{num_disbursements}},\n        \"number_of_disbursements\": {{num_disbursements}},\n        \"total_disbursement_quantity\": {{total_amount}},\n        \"measurement_unit\": \"{{currency}}\",\n        \"disbursement_schedule_date\": \"{{schedule_date}}\"\n      }\n    ]\n  }\n}",
+              "raw": "{\n\n  \"request_header\": {\n    \"sender_app_mnemonic\": \"{{sender_app}}\",\n    \"sender_app_url\": \"{{sender_app_url}}\",\n    \"request_id\": \"{{request_id}}\",\n    \"request_timestamp\": \"{{request_timestamp}}\",\n    \"instance_id\": null\n  },\n  \"request_body\": {\n    \"pagination_request\": null,\n    \"request_payload\": [\n      {\n        \"benefit_program_id\": {{program_id}},\n        \"benefit_program_mnemonic\": \"{{program_mnemonic}}\",\n        \"benefit_program_description\": \"API walkthrough training program\",\n        \"target_registry\": \"{{target_registry}}\",\n        \"benefit_code_id\": {{benefit_code_id}},\n        \"benefit_code_mnemonic\": \"{{benefit_code_mnemonic}}\",\n        \"benefit_code_description\": \"Digital cash training\",\n        \"benefit_type\": \"CASH_DIGITAL\",\n        \"disbursement_cycle_id\": {{cycle_id}},\n        \"disbursement_frequency\": \"{{frequency}}\",\n        \"cycle_code_mnemonic\": \"{{program_mnemonic}}_CYCLE\",\n        \"number_of_beneficiaries\": {{num_disbursements}},\n        \"number_of_disbursements\": {{num_disbursements}},\n        \"total_disbursement_quantity\": {{total_amount}},\n        \"measurement_unit\": \"{{currency}}\",\n        \"disbursement_schedule_date\": \"{{schedule_date}}\"\n      }\n    ]\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -192,7 +248,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n\n  \"request_header\": {\n    \"sender_app_mnemonic\": \"{{sender_app}}\",\n    \"sender_app_url\": \"{{sender_app_url}}\",\n    \"request_id\": \"{{$guid}}\",\n    \"request_timestamp\": \"{{$isoTimestamp}}\",\n    \"instance_id\": null\n  },\n  \"request_body\": {\n    \"pagination_request\": null,\n    \"request_payload\": {\n      \"transaction_id\": \"{{run_id}}_LNK_{{beneficiary_id}}\",\n      \"link_request\": {{link_request_json}}\n    }\n  }\n}",
+              "raw": "{\n\n  \"request_header\": {\n    \"sender_app_mnemonic\": \"{{sender_app}}\",\n    \"sender_app_url\": \"{{sender_app_url}}\",\n    \"request_id\": \"{{request_id}}\",\n    \"request_timestamp\": \"{{request_timestamp}}\",\n    \"instance_id\": null\n  },\n  \"request_body\": {\n    \"pagination_request\": null,\n    \"request_payload\": {\n      \"transaction_id\": \"{{run_id}}_LNK_{{beneficiary_id}}\",\n      \"link_request\": {{link_request_json}}\n    }\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -303,7 +359,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n\n  \"request_header\": {\n    \"sender_app_mnemonic\": \"{{sender_app}}\",\n    \"sender_app_url\": \"{{sender_app_url}}\",\n    \"request_id\": \"{{$guid}}\",\n    \"request_timestamp\": \"{{$isoTimestamp}}\",\n    \"instance_id\": null\n  },\n  \"request_body\": {\n    \"pagination_request\": null,\n    \"disbursement_batch_control_id\": \"{{batch_control_id}}\",\n    \"request_payload\": {{disbursements_accum}}\n  }\n}",
+              "raw": "{\n\n  \"request_header\": {\n    \"sender_app_mnemonic\": \"{{sender_app}}\",\n    \"sender_app_url\": \"{{sender_app_url}}\",\n    \"request_id\": \"{{request_id}}\",\n    \"request_timestamp\": \"{{request_timestamp}}\",\n    \"instance_id\": null\n  },\n  \"request_body\": {\n    \"pagination_request\": null,\n    \"disbursement_batch_control_id\": \"{{batch_control_id}}\",\n    \"request_payload\": {{disbursements_accum}}\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -354,7 +410,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n\n  \"request_header\": {\n    \"sender_app_mnemonic\": \"{{sender_app}}\",\n    \"sender_app_url\": \"{{sender_app_url}}\",\n    \"request_id\": \"{{$guid}}\",\n    \"request_timestamp\": \"{{$isoTimestamp}}\",\n    \"instance_id\": null\n  },\n  \"request_body\": {\n    \"pagination_request\": null,\n    \"request_payload\": \"{{batch_control_id}}\"\n  }\n}",
+              "raw": "{\n\n  \"request_header\": {\n    \"sender_app_mnemonic\": \"{{sender_app}}\",\n    \"sender_app_url\": \"{{sender_app_url}}\",\n    \"request_id\": \"{{request_id}}\",\n    \"request_timestamp\": \"{{request_timestamp}}\",\n    \"instance_id\": null\n  },\n  \"request_body\": {\n    \"pagination_request\": null,\n    \"request_payload\": \"{{batch_control_id}}\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -395,7 +451,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n\n  \"request_header\": {\n    \"sender_app_mnemonic\": \"{{sender_app}}\",\n    \"sender_app_url\": \"{{sender_app_url}}\",\n    \"request_id\": \"{{$guid}}\",\n    \"request_timestamp\": \"{{$isoTimestamp}}\",\n    \"instance_id\": null\n  },\n  \"request_body\": {\n    \"pagination_request\": null,\n    \"request_payload\": \"{{envelope_id}}\"\n  }\n}",
+              "raw": "{\n\n  \"request_header\": {\n    \"sender_app_mnemonic\": \"{{sender_app}}\",\n    \"sender_app_url\": \"{{sender_app_url}}\",\n    \"request_id\": \"{{request_id}}\",\n    \"request_timestamp\": \"{{request_timestamp}}\",\n    \"instance_id\": null\n  },\n  \"request_body\": {\n    \"pagination_request\": null,\n    \"request_payload\": \"{{envelope_id}}\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -438,7 +494,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n\n  \"request_header\": {\n    \"sender_app_mnemonic\": \"{{sender_app}}\",\n    \"sender_app_url\": \"{{sender_app_url}}\",\n    \"request_id\": \"{{$guid}}\",\n    \"request_timestamp\": \"{{$isoTimestamp}}\",\n    \"instance_id\": null\n  },\n  \"request_body\": {\n    \"pagination_request\": null,\n    \"request_payload\": {{created_disbursement_ids}}\n  }\n}",
+              "raw": "{\n\n  \"request_header\": {\n    \"sender_app_mnemonic\": \"{{sender_app}}\",\n    \"sender_app_url\": \"{{sender_app_url}}\",\n    \"request_id\": \"{{request_id}}\",\n    \"request_timestamp\": \"{{request_timestamp}}\",\n    \"instance_id\": null\n  },\n  \"request_body\": {\n    \"pagination_request\": null,\n    \"request_payload\": {{created_disbursement_ids}}\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -575,7 +631,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n\n  \"request_header\": {\n    \"sender_app_mnemonic\": \"{{sender_app}}\",\n    \"sender_app_url\": \"{{sender_app_url}}\",\n    \"request_id\": \"{{$guid}}\",\n    \"request_timestamp\": \"{{$isoTimestamp}}\",\n    \"instance_id\": null\n  },\n  \"request_body\": {\n    \"pagination_request\": null,\n    \"request_payload\": {\n      \"transaction_id\": \"{{run_id}}_ULK_{{beneficiary_id}}\",\n      \"unlink_request\": [\n        {\n          \"reference_id\": \"{{run_id}}_UREF_{{beneficiary_id}}\",\n          \"timestamp\": \"{{$isoTimestamp}}\",\n          \"id\": \"{{beneficiary_id}}\"\n        }\n      ]\n    }\n  }\n}",
+              "raw": "{\n\n  \"request_header\": {\n    \"sender_app_mnemonic\": \"{{sender_app}}\",\n    \"sender_app_url\": \"{{sender_app_url}}\",\n    \"request_id\": \"{{request_id}}\",\n    \"request_timestamp\": \"{{request_timestamp}}\",\n    \"instance_id\": null\n  },\n  \"request_body\": {\n    \"pagination_request\": null,\n    \"request_payload\": {\n      \"transaction_id\": \"{{run_id}}_ULK_{{beneficiary_id}}\",\n      \"unlink_request\": [\n        {\n          \"reference_id\": \"{{run_id}}_UREF_{{beneficiary_id}}\",\n          \"timestamp\": \"{{$isoTimestamp}}\",\n          \"id\": \"{{beneficiary_id}}\"\n        }\n      ]\n    }\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -624,6 +680,18 @@
     {
       "key": "disbursements_accum",
       "value": "[]"
+    },
+    {
+      "key": "request_id",
+      "value": ""
+    },
+    {
+      "key": "request_timestamp",
+      "value": ""
+    },
+    {
+      "key": "_jsrsasign_src",
+      "value": ""
     }
   ]
 }

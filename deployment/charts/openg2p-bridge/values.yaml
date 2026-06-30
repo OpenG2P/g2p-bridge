@@ -1102,8 +1102,9 @@ exampleBankCeleryWorker:
 # sanity.runE2e=true to include the data-creating e2e (test environments only).
 # -----------------------------------------------------------------------------
 sanity:
-  # Enabled by default: runs L0 (smoke) + L1 (contract) on each install/upgrade.
-  # These are read-only (no data created). L2 (e2e) is opt-in via runE2e below.
+  # When enabled, the suite runs as a Helm hook Job on each install/upgrade and
+  # ANY failure FAILS the deployment (failOnError below). Inspect results in the
+  # Job pod's logs (no viewer pod). Disable the whole suite by setting enabled=false.
   enabled: true
 
   image:
@@ -1111,12 +1112,13 @@ sanity:
     tag: "develop"
     pullPolicy: Always
 
-  # L2 (end-to-end). false = L0 smoke + L1 contract only (no data). true = also
-  # run L2 e2e, which CREATES test data and moves treasury funds. L0/L1 always run.
-  runE2e: false
-  # When false (default) the run NEVER fails the install/upgrade — read the report
-  # for pass/fail. Set true only if you want a failing sanity run to fail the deploy.
-  failOnError: false
+  # L2 (end-to-end) ON by default: full digital-cash flow (CREATES test data and
+  # moves treasury funds) in addition to L0 smoke + L1 contract. Set false to run
+  # only the read-only smoke/contract tests (no data created).
+  runE2e: true
+  # A failing sanity run FAILS the install/upgrade (the hook Job exits non-zero, so
+  # Helm/Rancher marks the release failed). Set false only to make sanity advisory.
+  failOnError: true
 
   # Targets the suite hits — built ENTIRELY from already-defined chart values
   # (component hostnames + their openapiRootPath), so they track whatever the
@@ -1151,9 +1153,11 @@ sanity:
     accessMode: ReadWriteMany
     size: 1Gi
 
-  # Long-running nginx that serves the latest report at the hostname below.
+  # Results viewer pod. Disabled — read pass/fail from the sanity Job pod's logs
+  # (kubectl logs job/<release>-sanity, or the Rancher pod logs). Enable only if you
+  # want a persistent nginx serving an HTML report.
   viewer:
-    enabled: true
+    enabled: false
     image:
       repository: nginx
       tag: 1.27-alpine

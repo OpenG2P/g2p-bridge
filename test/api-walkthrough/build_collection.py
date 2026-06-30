@@ -154,16 +154,81 @@ def item(name, method, url_raw, *, body=None, pre=None, test=None, desc=None) ->
 
 
 # --------------------------------------------------------------------------- #
-# Reusable G2PConnect request_header (dynamic id + timestamp via Postman vars).
+# Reusable G2PConnect request_header. request_id / request_timestamp are set by the
+# collection pre-request (not the {{$guid}}/{{$isoTimestamp}} dynamic vars) so the
+# signed bytes equal exactly what Postman sends — the signature is computed over
+# the resolved body.
 # --------------------------------------------------------------------------- #
 HEADER = """
   "request_header": {
     "sender_app_mnemonic": "{{sender_app}}",
     "sender_app_url": "{{sender_app_url}}",
-    "request_id": "{{$guid}}",
-    "request_timestamp": "{{$isoTimestamp}}",
+    "request_id": "{{request_id}}",
+    "request_timestamp": "{{request_timestamp}}",
     "instance_id": null
   }"""
+
+
+# --------------------------------------------------------------------------- #
+# Collection-level pre-request: sign Partner API requests (TEST/DEMO).
+#
+# Signs the request body as a detached JWS in the "Signature" header, matching the
+# Bridge's local (PyJWT) verification: signing input = base64url(header) + "." +
+# base64url(canonical_json(body)), canonical = sorted-keys compact JSON. Only
+# requests to {{bridge_base_url}} are signed. Uses the committed TEST-ONLY PEM key
+# in {{signing_private_pem}} (exported from test/keys/test-partner.p12 — the Postman
+# sandbox's jsrsasign cannot read a password-protected .p12). jsrsasign is loaded
+# once from a pinned CDN (needs internet) and cached in a collection variable.
+# Set sign_requests=false in the environment to disable (unsigned Bridge).
+# --------------------------------------------------------------------------- #
+SIGN_PREREQUEST = r"""
+// Deterministic request id + timestamp, referenced by the body templates, so the
+// signed bytes equal what Postman sends.
+pm.collectionVariables.set('request_id', pm.variables.replaceIn('{{$guid}}'));
+pm.collectionVariables.set('request_timestamp', new Date().toISOString());
+
+if (String(pm.variables.get('sign_requests')) !== 'true') return;
+var raw = pm.request.body && pm.request.body.raw;
+if (!raw) return;
+var reqUrl = pm.variables.replaceIn(pm.request.url.toString());
+var bridgeBase = pm.variables.replaceIn('{{bridge_base_url}}');
+if (reqUrl.indexOf(bridgeBase) !== 0) return; // sign only Bridge Partner API calls
+
+function canonical(o) {
+  if (Array.isArray(o)) return '[' + o.map(canonical).join(',') + ']';
+  if (o && typeof o === 'object') {
+    return '{' + Object.keys(o).sort().map(function (k) {
+      return JSON.stringify(k) + ':' + canonical(o[k]);
+    }).join(',') + '}';
+  }
+  return JSON.stringify(o);
+}
+
+function doSign() {
+  var b64u = function (s) { return hextob64u(rstrtohex(s)); };
+  var body = JSON.parse(pm.variables.replaceIn(raw));
+  var key = KEYUTIL.getKey(pm.variables.get('signing_private_pem'));
+  var header = { alg: 'RS256', kid: pm.variables.get('signing_kid') };
+  var p1 = b64u(JSON.stringify(header));
+  var p2 = b64u(canonical(body));
+  var sig = new KJUR.crypto.Signature({ alg: 'SHA256withRSA' });
+  sig.init(key); sig.updateString(p1 + '.' + p2);
+  var p3 = hextob64u(sig.sign());
+  pm.request.headers.upsert({ key: 'Signature', value: p1 + '..' + p3 });
+}
+
+var cached = pm.collectionVariables.get('_jsrsasign_src');
+if (cached) { eval(cached); doSign(); return; }
+return new Promise(function (resolve) {
+  pm.sendRequest(pm.variables.get('jsrsasign_url'), function (err, res) {
+    if (err || !res) { console.log('jsrsasign load failed; sending unsigned:', err); return resolve(); }
+    var src = res.text();
+    pm.collectionVariables.set('_jsrsasign_src', src);
+    try { eval(src); doSign(); } catch (e) { console.log('signing error:', e); }
+    resolve();
+  });
+});
+"""
 
 
 # =========================================================================== #
@@ -688,14 +753,18 @@ F6_CLEANUP = {
 # Collection + environment assembly.
 # --------------------------------------------------------------------------- #
 COLLECTION = {
+    "event": [_event("prerequest", SIGN_PREREQUEST)],
     "info": {
         "name": "G2P Bridge - API Walkthrough",
         "description": (
             "A guided, manual walkthrough of the G2P Bridge disbursement APIs "
             "(digital cash), for implementers who have installed G2P Bridge + "
             "SPAR + the Example Bank. Seed data comes from `beneficiaries.csv` "
-            "(edit it; change the schedule date / amounts as you like). Auth is "
-            "assumed disabled.\n\n"
+            "(edit it; change the schedule date / amounts as you like).\n\n"
+            "Partner API requests are SIGNED by default (detached JWS in the "
+            "`Signature` header) with the committed TEST-ONLY key, matching the "
+            "trial Bridge's local crypto backend. Set `sign_requests=false` in the "
+            "environment to target an unsigned Bridge.\n\n"
             "Run the six folders in order. Folders 3 and 6 are DATA-DRIVEN: run "
             "them from the Collection Runner with `beneficiaries.csv` as the "
             "data file. Folder 5 is meant to be RE-RUN repeatedly while the "
@@ -712,6 +781,10 @@ COLLECTION = {
         {"key": "envelope_id", "value": ""},
         {"key": "created_disbursement_ids", "value": "[]"},
         {"key": "disbursements_accum", "value": "[]"},
+        # Set per-request by the signing pre-request; cached jsrsasign source.
+        {"key": "request_id", "value": ""},
+        {"key": "request_timestamp", "value": ""},
+        {"key": "_jsrsasign_src", "value": ""},
     ],
 }
 
@@ -726,6 +799,46 @@ ENV_VARS = [
     ),
     ("sender_app", "TRAINING"),
     ("sender_app_url", "http://training.local"),
+    # --- Request signing (TEST/DEMO; the trial Bridge enforces signature validation) ---
+    # Sign Partner API requests with the committed TEST-ONLY key — the PEM exported
+    # from test/keys/test-partner.p12 (jsrsasign can't read a .p12), whose cert is
+    # seeded as PARTNER_TRAINING. kid = the cert's SHA-256 thumbprint. Set
+    # sign_requests=false when targeting a Bridge with validation off. NEVER a
+    # production key.
+    ("sign_requests", "true"),
+    ("signing_kid", "A6jg8w5H9fuRJYKDJM6RojY6NeNzLmsdihJlknn8wj4"),
+    (
+        "signing_private_pem",
+        "-----BEGIN PRIVATE KEY-----\n"
+        "MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDgn8teEibr2C0F\n"
+        "6G3xqVxDX0PM+CZLA4f9HzzdPrzzVD9XiIYBypsTWUrVXA7VZM/b4BaCXB3veDvE\n"
+        "MO2plZ87N4AfkH9WWADi8upayY7Sl1d/sEseSGvKrMw5F26tXnnbgRQ0VGJCYhoA\n"
+        "5jPHiPCqAyhwIhQ9nzeP9337QoGLchMnwx8IDdAS5jf5cDJj9RunGw95mCusrpwb\n"
+        "ucjbbrIknXt5QARYE0StevBhk8+YYvHaUM2LzjBtmDpgMEE2JSpeqgs9T/Q4juQQ\n"
+        "a/g1q0pQksa3MA7t/T11DVH2JUwWSpk9UywkLN9RE0CpJA9Z8auJk4fZz+Jpk9pj\n"
+        "Nw3JtL/PAgMBAAECggEAFhN+YEN2cc1wN1ltnMehWrm9JyLoWI0DS3xLdg8ZcOzB\n"
+        "wO+ZBAoOjatD8I44ov5ic2CltbAp/QQbE6Afa4BaAu7kd7Wy3iCODcAECmIu2EGp\n"
+        "htIjv9ksRuIOvDmyVfWoEkuwWahFc/LCTX5SbnTl+j+PNN4UkS3Zvxt61TvnEXY4\n"
+        "il5OteKybZAv+dLBx7utvBiUExQzL2rzCo6jHkJqvZxlfvcvg++jctv6Ja5h8cZp\n"
+        "iw5z9wae/NN0qcUXuRP3EG44LaQ40he5S59AkpCPUhSlAtKccwAzo/GAR+ZGQWrR\n"
+        "vftWxcFJgdQKyeRfNYXsTWcpLAdDfaUzwrswcwKGIQKBgQDyJ6kr0bLYwiKpSgL4\n"
+        "o54SM9k73NepiZMUFGr19mjtsYCxTOnaZlxozpBYwzOnpCKh0h+4p7E0kkWqX2w+\n"
+        "ncBPgwpGcwAASQ8erooXwliRAO3G1NxLf9gQhHpg2JvgKzV+QY2DNwV/ktLBvyiz\n"
+        "uVKr1A1SVr9KlprG78j083d9PwKBgQDtd4rS5EPSYbXxaZCdX58JdYzHlUTZl5iN\n"
+        "VZRPx1noiZAqlMKmTXrygX9wPpuhSl2DSO/l+PTM+qn7n+BKDPrE0r/mBd/umN9N\n"
+        "sfy8paze9trPp4TgvO83MDNikpCb+5LkqNH9nrvaMbDAfxmjzyhdp3nJHmmFyIg5\n"
+        "A09yN2DJcQKBgF5puDutdt2sU3dNs/rdUDQoovoEENG5Ie8iRtG/UQnbuyFlq4fL\n"
+        "gRwb7YuuD+W8yQPuuQ910lF89kyHB90iBGj73nW5QLbbxVlhE9ZPn9hpVEvBkmKd\n"
+        "ZdCK1mwMCDpOnnyrclFGko464JFJxsTL7L+x3b/MsqiSL6aAtwlKI7xhAoGBAKrv\n"
+        "HP/3jhZ3fWd8bLvLpAhEFIVqHnhe1lIOY0cWIdLwitUL5h2dsj20F87tUkvE4xFo\n"
+        "xD8PeO/AE/HrwKCtPSnG5pmmau4uHrenwlztCUYp/ZHybQT1G2DnkmWHSQ7vBWsR\n"
+        "Vq8wvtouYKQAGa2/pbfcoR6zhJPnqJ8ZkeuOj14RAoGBAJ4A63DHsAyQ33d3rB+y\n"
+        "VSHd9jukBMpglAAT8OTKTu3rlFugoYinr0sfNh9y5O8jmxAR6+qlmvsEgx8UXbtJ\n"
+        "aJHqCQ8F6cL2nw4pXzxh+JHt1VvYut9xdIWSnfRZKTgzsx/UGZrIm9vHNUE9bNKt\n"
+        "pKkB3Gzh6oyYjSifI7gp4tzY\n"
+        "-----END PRIVATE KEY-----\n",
+    ),
+    ("jsrsasign_url", "https://cdnjs.cloudflare.com/ajax/libs/jsrsasign/11.1.0/jsrsasign-all-min.js"),
     ("spar_strategy_id", "5"),
     ("treasury_account", "SPONSOR0001"),
     ("currency", "USD"),
