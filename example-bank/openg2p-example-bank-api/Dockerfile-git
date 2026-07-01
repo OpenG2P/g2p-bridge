@@ -33,5 +33,8 @@ USER ${container_user}
 
 ENV PYTHONUNBUFFERED=1
 
-CMD python3 main.py migrate; \
+# `migrate &&` (not `;`): a failed migration must crash-loop the pod so it retries
+# until the DB is ready + migrate succeeds, instead of silently serving an empty DB
+# (which masked the missing `accounts` table + un-seeded treasury account).
+CMD python3 main.py migrate && \
     gunicorn "main:app" --workers ${EXAMPLE_BANK_NO_OF_WORKERS} --worker-class uvicorn.workers.UvicornWorker --bind ${EXAMPLE_BANK_HOST}:${EXAMPLE_BANK_PORT}
