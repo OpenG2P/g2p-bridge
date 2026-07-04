@@ -34,7 +34,7 @@ global:
   exampleBankHostname: 'example-bank.{{ .Values.global.namespace | default .Release.Namespace }}.openg2p.org'
   # In-cluster URL the Bridge uses to reach the Example Bank API.
   g2pBridgeExampleBankBaseUrl: http://openg2p-g2p-bridge-example-bank-api
-  g2pBrdidgeExampleBankCode: EXAMPLE-BANK
+  g2pBridgeExampleBankCode: EXAMPLE-BANK
 
   # Keycloak is per-namespace (commons layer in this namespace), same as NSR.
   keycloakBaseUrl: 'https://keycloak.{{ .Values.global.namespace | default .Release.Namespace }}.openg2p.org'
@@ -176,7 +176,7 @@ global:
   #     create the matching account in the Example Bank.
   sponsorBankConfigurations:
     default:
-      sponsor_bank_code: '{{ tpl .Values.global.g2pBrdidgeExampleBankCode $ }}'
+      sponsor_bank_code: '{{ tpl .Values.global.g2pBridgeExampleBankCode $ }}'
       program_account_number: "SPONSOR0001"
       program_account_type: ""
       program_account_branch_code: ""
@@ -665,7 +665,7 @@ g2pBridgeCeleryWorkers:
     G2P_BRIDGE_BANK_CONNECTORS_FUNDS_AVAILABLE_CHECK_URL_EXAMPLE_BANK: '{{ tpl .Values.global.g2pBridgeExampleBankBaseUrl $ }}/check_funds'
     G2P_BRIDGE_BANK_CONNECTORS_FUNDS_BLOCK_URL_EXAMPLE_BANK: '{{ tpl .Values.global.g2pBridgeExampleBankBaseUrl $ }}/block_funds'
     G2P_BRIDGE_BANK_CONNECTORS_FUNDS_DISBURSEMENT_URL_EXAMPLE_BANK: '{{ tpl .Values.global.g2pBridgeExampleBankBaseUrl $ }}/initiate_payment'
-    G2P_BRIDGE_BANK_CONNECTORS_BANK_SIMULATOR_CODE: '{{ tpl .Values.global.g2pBrdidgeExampleBankCode $ }}'
+    G2P_BRIDGE_BANK_CONNECTORS_BANK_SIMULATOR_CODE: '{{ tpl .Values.global.g2pBridgeExampleBankCode $ }}'
 
     G2P_BRIDGE_CELERY_WORKERS_MAPPER_REQUEST_JWT_ENABLED: false
     G2P_BRIDGE_CELERY_WORKERS_BANK_FA_DECONSTRUCT_STRATEGY: '^account_number:(?P<account_number>.*)\.branch_code:(?P<branch_code>.*)\.bank_code:(?P<bank_code>.*)\.mobile_number:(?P<mobile_number>.*)\.email_address:(?P<email_address>.*)\.fa_type:(?P<fa_type>.*)$'
@@ -821,7 +821,10 @@ redis:
 # depend on Keycloak being reachable.
 # ---------------------------------------------------------------------------
 keycloak-init:
-  enabled: true
+  # OFF by default: the Bridge's OIDC client is only used to authenticate to MOSIP
+  # Keymanager, which the default local crypto backend does not use. Enable only if
+  # you switch global.g2pBridgeCryptoBackend to the legacy "keymanager" backend.
+  enabled: false
   keycloak:
     # Internal URL to reach Keycloak within the namespace (commons layer).
     url: 'http://commons-keycloak:80'

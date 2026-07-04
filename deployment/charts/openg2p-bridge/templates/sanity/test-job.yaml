@@ -75,7 +75,7 @@ spec:
             - name: SANITY_TREASURY_CURRENCY
               value: {{ .Values.global.sponsorBankConfigurations.default.account_currency | quote }}
             - name: SANITY_BENEFICIARY_BANK_CODE
-              value: {{ tpl .Values.global.g2pBrdidgeExampleBankCode $ | quote }}
+              value: {{ tpl .Values.global.g2pBridgeExampleBankCode $ | quote }}
             - name: SANITY_SPAR_BANK_STRATEGY_ID
               value: {{ $s.sparBankStrategyId | quote }}
             - name: SANITY_RUN_E2E
