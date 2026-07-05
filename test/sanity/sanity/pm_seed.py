@@ -202,7 +202,7 @@ def main() -> int:
         "partner_api_url": partner_api_url,
         "admin_url": _env("SANITY_PM_ADMIN_URL").rstrip("/"),
         "algorithm": _env("SANITY_PM_ALGORITHM", "RS256"),
-        "client_id": _env("SANITY_PM_CLIENT_ID", "partner-management-staff-portal"),
+        "client_id": _env("SANITY_PM_CLIENT_ID", "commons-services-staff-portal"),
         "verify": verify,
     }
     try:

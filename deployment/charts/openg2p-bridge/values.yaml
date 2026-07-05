@@ -73,8 +73,14 @@ global:
   # In-cluster URLs of the Partner Manager service:
   #   partnerManagementApiUrl      -> partner-api: unauthenticated key fetch (runtime)
   #   partnerManagementAdminApiUrl -> staff-portal-api: onboarding/approve (pm-seed job)
-  partnerManagementApiUrl: http://partner-management-partner-api
-  partnerManagementAdminApiUrl: http://partner-management-staff-portal-api
+  partnerManagementApiUrl: http://commons-services-pm-partner-api
+  partnerManagementAdminApiUrl: http://commons-services-pm-staff-portal-api
+  # Keycloak client (staff realm) the pm-register Job authenticates as to onboard/approve
+  # partners. It must hold PM's admin role (partner_manager). Partner Manager provisions
+  # this client as "<release>-staff-portal" and stores its secret in a K8s Secret of the
+  # SAME name (key client_secret). In the commons install (release "commons-services")
+  # that is "commons-services-staff-portal".
+  pmSeedClientId: commons-services-staff-portal
   # RS256 only (asymmetric); "none" and HMAC (HS*) are always rejected.
   g2pBridgeCryptoAllowedAlgorithms: "RS256"
 

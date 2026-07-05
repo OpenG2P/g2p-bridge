@@ -22,11 +22,11 @@ committed test cert + test-partner ids. Reads global only.
 - name: SANITY_PM_TOKEN_URL
   value: "{{ tpl $g.keycloakIssuerUrl $ }}/protocol/openid-connect/token"
 - name: SANITY_PM_CLIENT_ID
-  value: {{ $g.pmSeedClientId | default "partner-management-staff-portal" | quote }}
+  value: {{ $g.pmSeedClientId | default "commons-services-staff-portal" | quote }}
 - name: SANITY_PM_CLIENT_SECRET
   valueFrom:
     secretKeyRef:
-      name: {{ $g.pmSeedClientId | default "partner-management-staff-portal" | quote }}
+      name: {{ $g.pmSeedClientId | default "commons-services-staff-portal" | quote }}
       key: client_secret
       optional: true
 - name: SANITY_PM_ALGORITHM
