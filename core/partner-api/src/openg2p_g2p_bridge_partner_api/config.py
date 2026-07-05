@@ -27,3 +27,8 @@ class Settings(BaseSettings):
 
     keymanager_sign_app_id: str = "OPENG2P_BRIDGE"
     signature_validation_enabled: bool = False
+
+    # Inbound partner-signature verification fetches partner public keys from the
+    # Partner Manager (PM) service. `partner_mgmt_api_url` + the partner_key_* cache
+    # settings are inherited from the openg2p-fastapi-common base Settings.
+    crypto_backend: str = "partner-mgmt"

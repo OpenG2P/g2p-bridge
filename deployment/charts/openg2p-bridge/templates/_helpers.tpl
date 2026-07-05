@@ -1,23 +1,39 @@
 {{/*
-Build the JSON list of partner certs seeded into the partner_keys table at
-migrate-time (local crypto backend): operator-provided global.g2pBridgePartnerCerts
-plus, when the trial test partner is enabled, the committed test cert under
-PARTNER_<MNEMONIC> for each global.testPartnerMnemonics. Compact JSON (PEM newlines
-escaped) for the G2P_BRIDGE_CRYPTO_PARTNER_CERTS env var. Reads global only, so it
-works from the component-scoped env render context.
+Env for the pm-seed Job: the Partner Manager URLs, the admin token credentials (a
+Keycloak client holding the partner_manager role in the staff realm), and the test
+partner cert + ids to onboard (PARTNER_<MNEMONIC> for each global.testPartnerMnemonics).
+Reads global only, so it works from the component-scoped render context.
 */}}
-{{- define "openg2p-bridge.partnerCertsJson" -}}
+{{- define "openg2p-bridge.pmSeedEnv" -}}
 {{- $g := .Values.global -}}
-{{- $certs := list -}}
-{{- range $g.g2pBridgePartnerCerts -}}
-{{- $certs = append $certs (dict "reference_id" .referenceId "public_key" .publicKey) -}}
-{{- end -}}
-{{- if $g.testPartnerEnabled -}}
+{{- $ids := list -}}
 {{- range $g.testPartnerMnemonics -}}
-{{- $certs = append $certs (dict "reference_id" (printf "PARTNER_%s" .) "public_key" $g.testPartnerCertPem) -}}
+{{- $ids = append $ids (printf "PARTNER_%s" .) -}}
 {{- end -}}
-{{- end -}}
-{{- $certs | toJson -}}
+- name: SANITY_VERIFY_TLS
+  value: {{ $g.g2pBridgeVerifyTls | default false | quote }}
+- name: SANITY_PM_PARTNER_API_URL
+  value: {{ tpl $g.partnerManagementApiUrl $ | quote }}
+- name: SANITY_PM_ADMIN_URL
+  value: {{ tpl $g.partnerManagementAdminApiUrl $ | quote }}
+- name: SANITY_PM_TOKEN_URL
+  value: "{{ tpl $g.keycloakIssuerUrl $ }}/protocol/openid-connect/token"
+- name: SANITY_PM_CLIENT_ID
+  value: {{ $g.pmSeedClientId | default "partner-management-staff-portal" | quote }}
+- name: SANITY_PM_CLIENT_SECRET
+  valueFrom:
+    secretKeyRef:
+      name: {{ $g.pmSeedClientId | default "partner-management-staff-portal" | quote }}
+      key: client_secret
+      optional: true
+- name: SANITY_PM_PARTNER_IDS
+  value: {{ join "," $ids | quote }}
+- name: SANITY_PM_KID
+  value: {{ $g.testPartnerKid | quote }}
+- name: SANITY_PM_PUBLIC_CERT_PEM
+  value: {{ $g.testPartnerCertPem | quote }}
+- name: SANITY_PM_ALGORITHM
+  value: "RS256"
 {{- end -}}
 
 {{/*

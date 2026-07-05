@@ -7,8 +7,7 @@ from .config import Settings
 _config = Settings.get_config()
 
 from openg2p_fastapi_common.app import Initializer as BaseInitializer
-from openg2p_fastapi_common.models import PartnerKey
-from openg2p_fastapi_common.utils.crypto import build_crypto_helper, seed_partner_certs
+from openg2p_fastapi_common.utils.crypto import build_crypto_helper
 from openg2p_g2p_bridge_models.models import (
     AccountStatement,
     AccountStatementLob,
@@ -55,8 +54,9 @@ class Initializer(BaseInitializer):
         AccountStatementService()
         DisbursementStatusService()
         DisbursementEnvelopeStatusService()
-        # Inbound partner-signature verification. Backend (keymanager | local) is
-        # chosen by crypto_backend config; see openg2p_fastapi_common.utils.crypto.
+        # Inbound partner-signature verification — fetches partner public keys from
+        # the Partner Manager (PM) service (crypto_backend=partner-mgmt). No local
+        # key store; see openg2p_fastapi_common.utils.crypto.PartnerMgmtKeyStore.
         build_crypto_helper()
         JWTValidationHelper()
         DisbursementEnvelopeController().post_init()
@@ -84,10 +84,7 @@ class Initializer(BaseInitializer):
             await EnvelopeBatchStatusForCash.create_migrate()
             await EnvelopeControl.create_migrate()
             await NotificationLog.create_migrate()
-            # Local crypto backend: create the partner_keys table and seed-onboard
-            # configured partner certs (idempotent). No-op for the keymanager backend.
-            if _config.crypto_backend == "local":
-                await PartnerKey.create_migrate()
-                await seed_partner_certs(_config.crypto_partner_certs)
+            # Partner public keys are served by the Partner Manager (PM) service —
+            # no local partner_keys table or cert seeding here.
 
         asyncio.run(migrate())

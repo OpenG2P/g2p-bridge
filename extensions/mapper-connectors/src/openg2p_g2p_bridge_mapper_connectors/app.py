@@ -20,6 +20,7 @@ class Initializer(BaseInitializer):
         SPARMapper()
         JWTValidationHelper()
         # Outbound SPAR-request signing helper, registered under the name the
-        # SPARMapperClient looks up. Backend (keymanager | local) chosen by
-        # crypto_backend; the local backend signs with the configured .p12.
-        build_crypto_helper(name=_config.spar_mapper_api_sign_crypto_helper_name)
+        # SPARMapperClient looks up. Signing always uses the LOCAL backend (it signs
+        # with the Bridge's own .p12); PM is verify-only, so force backend="local"
+        # regardless of the inbound crypto_backend.
+        build_crypto_helper(name=_config.spar_mapper_api_sign_crypto_helper_name, backend="local")

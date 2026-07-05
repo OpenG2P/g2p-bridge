@@ -64,13 +64,17 @@ global:
   g2pBridgeKeymanagerAuthEnabled: false
   g2pBridgeKeymanagerAppId: OPENG2P_BRIDGE
 
-  # ── JWS sign/verify backend (openg2p-fastapi-common) ──────────────────────
-  # "keymanager" -> remote Keymanager service (the keymanager* settings above).
-  # "local"      -> in-process PyJWT: partner public certs verified from the
-  #                 partner_keys DB table; outbound signing with a .p12 keystore.
-  #                 No Keymanager/Keycloak dependency. This is the default and what
-  #                 the bundled trial exercises.
-  g2pBridgeCryptoBackend: local
+  # ── Partner-signature crypto backend (openg2p-fastapi-common) ─────────────
+  # Partner public keys are served by the Partner Manager (PM) service. The Bridge
+  # fetches them from PM (partner-mgmt backend) to verify inbound signatures — no
+  # local key store, no Keymanager. Outbound signing to SPAR uses the Bridge's own
+  # .p12 (below), which is a purely-local operation.
+  g2pBridgeCryptoBackend: partner-mgmt
+  # In-cluster URLs of the Partner Manager service:
+  #   partnerManagementApiUrl      -> partner-api: unauthenticated key fetch (runtime)
+  #   partnerManagementAdminApiUrl -> staff-portal-api: onboarding/approve (pm-seed job)
+  partnerManagementApiUrl: http://partner-management-partner-api
+  partnerManagementAdminApiUrl: http://partner-management-staff-portal-api
   # RS256 only (asymmetric); "none" and HMAC (HS*) are always rejected.
   g2pBridgeCryptoAllowedAlgorithms: "RS256"
 
@@ -97,26 +101,22 @@ global:
     passwordSecretKey: password
     mountPath: /etc/g2p-bridge/signing-key
 
-  # Production partner onboarding (seed-based, local backend) — each entry is
-  # upserted into the partner_keys table at migrate-time. Onboard a partner by
-  # appending their public certificate here (referenceId = PARTNER_<MNEMONIC>):
-  #   g2pBridgePartnerCerts:
-  #     - referenceId: PARTNER_MY_PSP
-  #       publicKey: |
-  #         -----BEGIN CERTIFICATE-----
-  #         ...
-  #         -----END CERTIFICATE-----
-  g2pBridgePartnerCerts: []
+  # Production partner onboarding: partners (and their public keys) are registered
+  # in the Partner Manager (PM) service — see the pm-seed Job and the Onboarding
+  # Partners docs. Nothing is seeded into the Bridge locally.
 
-  # TEST/DEMO trial profile. When true (the bundled-trial default), the chart seeds
-  # the committed test-partner cert (as PARTNER_TEST_SANITY / PARTNER_TRAINING),
-  # turns signature validation + SPAR signing ON, and drives the sanity suite's
-  # signing — all with the public demo key (files/test-partner.p12). The key is
-  # committed, so set this false for any real deployment.
+  # TEST/DEMO trial profile. When true (the bundled-trial default), the pm-seed Job
+  # onboards the committed test-partner cert into PM under PARTNER_<MNEMONIC> for
+  # each mnemonic below — including PARTNER_G2P_BRIDGE so SPAR can verify the
+  # Bridge's resolve calls — and signature validation + SPAR signing are ON. The
+  # test cert is committed (public), so set this false for any real deployment.
   testPartnerEnabled: true
+  # kid registered in PM and used when signing (the test cert's SHA-256 thumbprint).
+  testPartnerKid: A6jg8w5H9fuRJYKDJM6RojY6NeNzLmsdihJlknn8wj4
   testPartnerMnemonics:
     - TEST_SANITY
     - TRAINING
+    - G2P_BRIDGE
   testPartnerCertPem: |
     -----BEGIN CERTIFICATE-----
     MIIDDzCCAfegAwIBAgIUJ5fj7XGtXGseT3bVOYPld+xhV/AwDQYJKoZIhvcNAQEL
@@ -309,15 +309,13 @@ g2pBridgeApi:
     G2P_BRIDGE_PORT: '{{ .Values.containerPort }}'
     G2P_BRIDGE_OPENAPI_ROOT_PATH: '{{ .Values.openapiRootPath }}'
 
-    # JWS backend selector (keymanager | local). The keymanager_* settings below
-    # are only used when backend=keymanager.
+    # Crypto backend = partner-mgmt: verify inbound partner signatures against
+    # public keys fetched from the Partner Manager (PM) service.
     G2P_BRIDGE_CRYPTO_BACKEND: '{{ .Values.global.g2pBridgeCryptoBackend }}'
     G2P_BRIDGE_CRYPTO_ALLOWED_ALGORITHMS: '{{ .Values.global.g2pBridgeCryptoAllowedAlgorithms }}'
-    # Local backend: partner public certs seeded into the partner_keys table at
-    # migrate-time (operator g2pBridgePartnerCerts + trial test partner).
-    G2P_BRIDGE_CRYPTO_PARTNER_CERTS: '{{ include "openg2p-bridge.partnerCertsJson" . }}'
-    G2P_BRIDGE_JWT_VALIDATE_KEYMANAGER_APP_ID: '{{ .Values.global.g2pBridgeKeymanagerAppId }}'
-    G2P_BRIDGE_KEYMANAGER_API_BASE_URL: "http://{{ .Values.global.keymanagerInstallationName }}/v1/keymanager"
+    # PM partner-api (unauthenticated key fetch). Read by fastapi-common's
+    # PartnerMgmtKeyStore as `GET {url}/keys/PARTNER_<sender_app_mnemonic>`.
+    G2P_BRIDGE_PARTNER_MGMT_API_URL: '{{ tpl .Values.global.partnerManagementApiUrl $ }}'
     # Inbound partner JWT signature validation on Partner API endpoints. On when
     # explicitly enabled OR when the trial test partner is onboarded.
     G2P_BRIDGE_SIGNATURE_VALIDATION_ENABLED: '{{ or .Values.global.g2pBridgeSignatureValidationEnabled .Values.global.testPartnerEnabled }}'
@@ -638,7 +636,9 @@ g2pBridgeCeleryWorkers:
     # prefix g2p_bridge_celery_workers_. build_crypto_helper()/PyJWTCryptoHelper in
     # fastapi-common read crypto_* from THAT singleton, so these MUST use the
     # CELERY_WORKERS_ prefix (not MAPPER_CONNECTORS_, which the worker never reads).
-    G2P_BRIDGE_CELERY_WORKERS_CRYPTO_BACKEND: '{{ .Values.global.g2pBridgeCryptoBackend }}'
+    # The worker only SIGNS outbound SPAR requests (with the Bridge's .p12), so it
+    # uses the local backend regardless of the inbound partner-mgmt verify backend.
+    G2P_BRIDGE_CELERY_WORKERS_CRYPTO_BACKEND: 'local'
     G2P_BRIDGE_CELERY_WORKERS_CRYPTO_ALLOWED_ALGORITHMS: '{{ .Values.global.g2pBridgeCryptoAllowedAlgorithms }}'
     G2P_BRIDGE_CELERY_WORKERS_CRYPTO_SIGNING_KEY_PATH: '{{ .Values.global.g2pBridgeSigningKey.mountPath }}/{{ .Values.global.g2pBridgeSigningKey.secretKey }}'
     G2P_BRIDGE_CELERY_WORKERS_CRYPTO_SIGNING_KEY_KID: '{{ .Values.global.g2pBridgeSigningKeyKid }}'

@@ -1,0 +1,40 @@
+{{- if .Values.global.testPartnerEnabled -}}
+{{- $s := .Values.sanity -}}
+# Onboard the trial's test partners into Partner Manager (PM) at deploy time.
+#
+# The Bridge verifies inbound partner signatures against keys served by PM, and
+# SPAR verifies the Bridge's resolve calls the same way — so the test partners
+# (PARTNER_TEST_SANITY, PARTNER_TRAINING, PARTNER_G2P_BRIDGE) must exist + be
+# active in PM before the sanity e2e signs anything. This Job onboards them
+# (idempotently) via PM's admin API, BEFORE the sanity test Job (hook-weight 0 < 5).
+# Best-effort: a seed failure is logged but does not block the deploy — the sanity
+# e2e is the real gate (and fails the deploy if verification then fails).
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Name }}-pm-seed
+  labels: {{- include "common.labels.standard" (dict "customLabels" .Values.commonLabels "context" $) | nindent 4 }}
+    app.kubernetes.io/component: pm-seed
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  backoffLimit: 1
+  template:
+    metadata:
+      labels: {{- include "common.labels.standard" (dict "customLabels" .Values.commonLabels "context" $) | nindent 8 }}
+        app.kubernetes.io/component: pm-seed
+    spec:
+      restartPolicy: Never
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: pm-seed
+          image: "{{ $s.image.repository }}:{{ $s.image.tag }}"
+          imagePullPolicy: {{ $s.image.pullPolicy }}
+          command: ["sh", "-c", "python -m sanity.pm_seed || echo '[pm-seed] non-fatal error; continuing deploy'"]
+          env:
+            {{- include "openg2p-bridge.pmSeedEnv" . | nindent 12 }}
+{{- end }}
