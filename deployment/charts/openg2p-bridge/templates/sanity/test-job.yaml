@@ -26,7 +26,11 @@ spec:
       {{- with .Values.global.imagePullSecrets }}
       imagePullSecrets: {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- $signing := and (eq .Values.global.g2pBridgeCryptoBackend "local") .Values.global.testPartnerEnabled }}
+      {{- /* Sign as the test partner whenever the Bridge enforces inbound signature
+             validation AND the test partner is onboarded (pm-register uses the same
+             gate). Independent of the verify backend (local vs partner-mgmt) — the
+             sanity always signs with the committed test .p12. */}}
+      {{- $signing := and .Values.global.testPartnerEnabled .Values.global.g2pBridgeSignatureValidationEnabled }}
       {{- if or $s.viewer.enabled $signing }}
       volumes:
         {{- if $s.viewer.enabled }}
