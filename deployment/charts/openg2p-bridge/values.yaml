@@ -101,22 +101,23 @@ global:
     passwordSecretKey: password
     mountPath: /etc/g2p-bridge/signing-key
 
-  # Production partner onboarding: partners (and their public keys) are registered
-  # in the Partner Manager (PM) service — see the pm-seed Job and the Onboarding
-  # Partners docs. Nothing is seeded into the Bridge locally.
+  # Partner onboarding: partners (and their keys) are registered in the Partner
+  # Manager (PM) service — see the pm-register Job and the Onboarding Partners docs.
+  # The Bridge registers ITS OWN key (PARTNER_G2P_BRIDGE, derived from the signing
+  # .p12) in PM automatically — in production too — so SPAR can verify it; customers
+  # don't do this by hand. Other (inbound) partners are onboarded in PM by operators.
 
-  # TEST/DEMO trial profile. When true (the bundled-trial default), the pm-seed Job
-  # onboards the committed test-partner cert into PM under PARTNER_<MNEMONIC> for
-  # each mnemonic below — including PARTNER_G2P_BRIDGE so SPAR can verify the
-  # Bridge's resolve calls — and signature validation + SPAR signing are ON. The
-  # test cert is committed (public), so set this false for any real deployment.
+  # TEST/DEMO trial profile. When true, the pm-register Job also onboards the
+  # committed test-partner cert into PM as PARTNER_<MNEMONIC> for each mnemonic below,
+  # so the sanity suite / Postman walkthrough can call the Bridge. Effective only when
+  # signature validation is on (see the Job gate). Test cert is committed (public), so
+  # this is forced OFF for production — see g2pBridgeSignatureValidationEnabled.
   testPartnerEnabled: true
-  # kid registered in PM and used when signing (the test cert's SHA-256 thumbprint).
+  # kid the test partners sign with (the test cert's SHA-256 thumbprint).
   testPartnerKid: A6jg8w5H9fuRJYKDJM6RojY6NeNzLmsdihJlknn8wj4
   testPartnerMnemonics:
     - TEST_SANITY
     - TRAINING
-    - G2P_BRIDGE
   testPartnerCertPem: |
     -----BEGIN CERTIFICATE-----
     MIIDDzCCAfegAwIBAgIUJ5fj7XGtXGseT3bVOYPld+xhV/AwDQYJKoZIhvcNAQEL
@@ -316,9 +317,10 @@ g2pBridgeApi:
     # PM partner-api (unauthenticated key fetch). Read by fastapi-common's
     # PartnerMgmtKeyStore as `GET {url}/keys/PARTNER_<sender_app_mnemonic>`.
     G2P_BRIDGE_PARTNER_MGMT_API_URL: '{{ tpl .Values.global.partnerManagementApiUrl $ }}'
-    # Inbound partner JWT signature validation on Partner API endpoints. On when
-    # explicitly enabled OR when the trial test partner is onboarded.
-    G2P_BRIDGE_SIGNATURE_VALIDATION_ENABLED: '{{ or .Values.global.g2pBridgeSignatureValidationEnabled .Values.global.testPartnerEnabled }}'
+    # Inbound partner JWS signature validation on Partner API endpoints — the single
+    # switch. Set g2pBridgeSignatureValidationEnabled=false to fully disable it (test
+    # partners are then not onboarded either; see the pm-register Job gate).
+    G2P_BRIDGE_SIGNATURE_VALIDATION_ENABLED: '{{ .Values.global.g2pBridgeSignatureValidationEnabled }}'
     # Outbound Keymanager API authentication (OAuth client credentials).
     G2P_BRIDGE_KEYMANAGER_AUTH_ENABLED: '{{ .Values.global.g2pBridgeKeymanagerAuthEnabled }}'
     G2P_BRIDGE_OAUTH_ENABLED: '{{ .Values.global.g2pBridgeKeymanagerAuthEnabled }}'

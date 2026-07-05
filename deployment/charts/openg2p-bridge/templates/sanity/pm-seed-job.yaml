@@ -1,40 +1,52 @@
-{{- if .Values.global.testPartnerEnabled -}}
+{{- if or .Values.global.g2pBridgeSparSignRequestsEnabled .Values.global.testPartnerEnabled -}}
 {{- $s := .Values.sanity -}}
-# Onboard the trial's test partners into Partner Manager (PM) at deploy time.
+{{- $sk := .Values.global.g2pBridgeSigningKey -}}
+# Register the Bridge (and, for the trial, its test partners) in Partner Manager (PM).
 #
-# The Bridge verifies inbound partner signatures against keys served by PM, and
-# SPAR verifies the Bridge's resolve calls the same way — so the test partners
-# (PARTNER_TEST_SANITY, PARTNER_TRAINING, PARTNER_G2P_BRIDGE) must exist + be
-# active in PM before the sanity e2e signs anything. This Job onboards them
-# (idempotently) via PM's admin API, BEFORE the sanity test Job (hook-weight 0 < 5).
-# Best-effort: a seed failure is logged but does not block the deploy — the sanity
-# e2e is the real gate (and fails the deploy if verification then fails).
+# The Bridge registers ITS OWN key — PARTNER_G2P_BRIDGE, derived from the signing
+# .p12 mounted below — so SPAR can verify the Bridge's resolve calls. This runs in
+# production too (whenever the Bridge signs to SPAR): registering its own key is the
+# Bridge's responsibility, not the customer's. When the trial test partner is enabled
+# (and signature validation is on), it also onboards the committed test partners so
+# the sanity suite / walkthrough can call the Bridge.
+#
+# Runs BEFORE the sanity test Job (hook-weight -1 < 5). Best-effort: a failure is
+# logged but does not block the deploy — the sanity e2e is the real gate.
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: {{ .Release.Name }}-pm-seed
+  name: {{ .Release.Name }}-pm-register
   labels: {{- include "common.labels.standard" (dict "customLabels" .Values.commonLabels "context" $) | nindent 4 }}
-    app.kubernetes.io/component: pm-seed
+    app.kubernetes.io/component: pm-register
   annotations:
     "helm.sh/hook": post-install,post-upgrade
-    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-weight": "-1"
     "helm.sh/hook-delete-policy": before-hook-creation
 spec:
   backoffLimit: 1
   template:
     metadata:
       labels: {{- include "common.labels.standard" (dict "customLabels" .Values.commonLabels "context" $) | nindent 8 }}
-        app.kubernetes.io/component: pm-seed
+        app.kubernetes.io/component: pm-register
     spec:
       restartPolicy: Never
       {{- with .Values.global.imagePullSecrets }}
       imagePullSecrets: {{- toYaml . | nindent 8 }}
       {{- end }}
       containers:
-        - name: pm-seed
+        - name: pm-register
           image: "{{ $s.image.repository }}:{{ $s.image.tag }}"
           imagePullPolicy: {{ $s.image.pullPolicy }}
-          command: ["sh", "-c", "python -m sanity.pm_seed || echo '[pm-seed] non-fatal error; continuing deploy'"]
+          command: ["sh", "-c", "python -m sanity.pm_seed || echo '[pm-register] non-fatal error; continuing deploy'"]
           env:
             {{- include "openg2p-bridge.pmSeedEnv" . | nindent 12 }}
+          volumeMounts:
+            - name: signing-key
+              mountPath: {{ $sk.mountPath }}
+              readOnly: true
+      volumes:
+        - name: signing-key
+          secret:
+            secretName: {{ tpl $sk.secretName $ }}
+            optional: true
 {{- end }}

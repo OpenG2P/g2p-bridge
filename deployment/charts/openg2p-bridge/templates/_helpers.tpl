@@ -1,14 +1,17 @@
 {{/*
-Env for the pm-seed Job: the Partner Manager URLs, the admin token credentials (a
-Keycloak client holding the partner_manager role in the staff realm), and the test
-partner cert + ids to onboard (PARTNER_<MNEMONIC> for each global.testPartnerMnemonics).
-Reads global only, so it works from the component-scoped render context.
+Env for the pm-register Job: Partner Manager URLs, the admin token creds (a Keycloak
+client holding the partner_manager role), the Bridge's OWN signing .p12 (→ registers
+PARTNER_G2P_BRIDGE, production too) and — only when signature validation is on — the
+committed test cert + test-partner ids. Reads global only.
 */}}
 {{- define "openg2p-bridge.pmSeedEnv" -}}
 {{- $g := .Values.global -}}
-{{- $ids := list -}}
+{{- $sk := $g.g2pBridgeSigningKey -}}
+{{- $testIds := list -}}
+{{- if and $g.testPartnerEnabled $g.g2pBridgeSignatureValidationEnabled -}}
 {{- range $g.testPartnerMnemonics -}}
-{{- $ids = append $ids (printf "PARTNER_%s" .) -}}
+{{- $testIds = append $testIds (printf "PARTNER_%s" .) -}}
+{{- end -}}
 {{- end -}}
 - name: SANITY_VERIFY_TLS
   value: {{ $g.g2pBridgeVerifyTls | default false | quote }}
@@ -26,14 +29,28 @@ Reads global only, so it works from the component-scoped render context.
       name: {{ $g.pmSeedClientId | default "partner-management-staff-portal" | quote }}
       key: client_secret
       optional: true
-- name: SANITY_PM_PARTNER_IDS
-  value: {{ join "," $ids | quote }}
-- name: SANITY_PM_KID
-  value: {{ $g.testPartnerKid | quote }}
-- name: SANITY_PM_PUBLIC_CERT_PEM
-  value: {{ $g.testPartnerCertPem | quote }}
 - name: SANITY_PM_ALGORITHM
-  value: "RS256"
+  value: {{ $g.g2pBridgeSigningAlgorithm | default "RS256" | quote }}
+# Self: the Bridge's own key, derived from the signing .p12 (mounted by the Job).
+- name: SANITY_PM_SELF_PARTNER_IDS
+  value: {{ ternary "PARTNER_G2P_BRIDGE" "" $g.g2pBridgeSparSignRequestsEnabled | quote }}
+- name: SANITY_PM_SIGNING_KEY_PATH
+  value: "{{ $sk.mountPath }}/{{ $sk.secretKey }}"
+- name: SANITY_PM_SIGNING_KEY_PASSWORD
+  valueFrom:
+    secretKeyRef:
+      name: {{ tpl $sk.secretName $ | quote }}
+      key: {{ $sk.passwordSecretKey | quote }}
+      optional: true
+- name: SANITY_PM_SELF_KID
+  value: {{ $g.g2pBridgeSigningKeyKid | default "" | quote }}
+# Test partners (only when signature validation is enabled) from the committed cert.
+- name: SANITY_PM_TEST_PARTNER_IDS
+  value: {{ join "," $testIds | quote }}
+- name: SANITY_PM_TEST_CERT_PEM
+  value: {{ $g.testPartnerCertPem | default "" | quote }}
+- name: SANITY_PM_TEST_KID
+  value: {{ $g.testPartnerKid | default "" | quote }}
 {{- end -}}
 
 {{/*
