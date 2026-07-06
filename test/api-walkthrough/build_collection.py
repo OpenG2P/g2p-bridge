@@ -14,7 +14,10 @@ The walkthrough drives the full digital-cash disbursement lifecycle against a
 live Bridge + SPAR + Example Bank, manually, from an implementer's laptop. It
 mirrors the request shapes used by the automated sanity suite (``test/sanity``),
 which is the single source of truth for the G2PConnect envelope and the staged
-pipeline. Auth is assumed disabled (signature/keymanager validation off).
+pipeline. Partner API requests to BOTH the Bridge and SPAR are signed (detached
+JWS) by default, matching the trial where signature validation is enforced and
+partner public keys are served by the Partner Manager (set sign_requests=false to
+target an unsigned deployment).
 
 Run order (documented in GitBook → Developer Zone → API Walkthrough):
 
@@ -122,8 +125,14 @@ def _raw_body(obj_text: str) -> dict:
 
 
 def _url(raw: str) -> dict:
-    # Postman is happy with just {"raw": ...}; it parses host/path on import.
-    return {"raw": raw}
+    # Structured host/path (not raw-only) so **newman** resolves the URL, not just
+    # the Postman app: newman's SDK fails to parse a raw URL that starts with a
+    # "{{var}}" into a host, and sends an empty URL. All URLs here are
+    # "{{base}}/segment[/segment...]", so host=["{{base}}"], path=[segments].
+    close = raw.index("}}") + 2
+    host_var = raw[:close]
+    rest = raw[close:].lstrip("/")
+    return {"raw": raw, "host": [host_var], "path": rest.split("/") if rest else []}
 
 
 def _request(method: str, url_raw: str, body_text: str | None = None) -> dict:
@@ -174,8 +183,9 @@ HEADER = """
 #
 # Signs the request body as a detached JWS in the "Signature" header, matching the
 # Bridge's local (PyJWT) verification: signing input = base64url(header) + "." +
-# base64url(canonical_json(body)), canonical = sorted-keys compact JSON. Only
-# requests to {{bridge_base_url}} are signed. Uses the committed TEST-ONLY PEM key
+# base64url(canonical_json(body)), canonical = sorted-keys compact JSON. Requests
+# to {{bridge_base_url}} AND {{spar_base_url}} are signed (both enforce partner
+# signatures); the Example Bank is not a partner API. Uses the committed TEST-ONLY PEM key
 # in {{signing_private_pem}} (exported from test/keys/test-partner.p12 — the Postman
 # sandbox's jsrsasign cannot read a password-protected .p12). jsrsasign is loaded
 # once from a pinned CDN (needs internet) and cached in a collection variable.
@@ -187,12 +197,56 @@ SIGN_PREREQUEST = r"""
 pm.collectionVariables.set('request_id', pm.variables.replaceIn('{{$guid}}'));
 pm.collectionVariables.set('request_timestamp', new Date().toISOString());
 
+// CRITICAL: set every variable that appears in THIS request's body HERE, before
+// signing. Postman runs pre-request scripts collection -> folder -> item, so any
+// body variable set by an item pre-request would be signed STALE here and sent
+// RESOLVED later -> the signature would not match (rjct.jwt.invalid). So the two
+// body-affecting item vars (schedule_date for the envelope, link_request_json for
+// the SPAR link) are built here instead.
+if (!pm.variables.get('schedule_date')) {
+  pm.environment.set('schedule_date', new Date().toISOString().slice(0, 10));
+}
+if (/\/link($|\?)/.test(pm.variables.replaceIn(pm.request.url.toString()))) {
+  // Build the SPAR link_request from the current CSV row. 'missing_from_spar'
+  // rows send an EMPTY array so the beneficiary is deliberately left unmapped.
+  var _sc = (pm.iterationData.get('scenario') || 'happy');
+  var _bid = pm.iterationData.get('beneficiary_id');
+  var _sid = Number(pm.environment.get('spar_strategy_id'));
+  var _arr = [];
+  if (_sc !== 'missing_from_spar') {
+    _arr = [{
+      reference_id: pm.variables.replaceIn('{{run_id}}') + '_REF_' + _bid,
+      timestamp: new Date().toISOString(),
+      id: _bid,
+      fa: {
+        strategy_id: _sid,
+        fa_type: 'BANK',
+        bank_name: (pm.iterationData.get('bank_code') || '') + ' Bank',
+        bank_code: String(pm.iterationData.get('bank_code')),
+        branch_name: 'Branch ' + (pm.iterationData.get('branch_code') || ''),
+        // String(): BankAccountFa requires these as strings, but the CSV parser
+        // coerces all-numeric values (e.g. "0001") to numbers -> schema 400.
+        branch_code: String(pm.iterationData.get('branch_code')),
+        account_number: String(pm.iterationData.get('account_number'))
+      },
+      name: pm.iterationData.get('beneficiary_name'),
+      additional_info: [{ strategy_id: _sid }],
+      locale: 'en'
+    }];
+  }
+  pm.variables.set('link_request_json', JSON.stringify(_arr));
+}
+
 if (String(pm.variables.get('sign_requests')) !== 'true') return;
 var raw = pm.request.body && pm.request.body.raw;
 if (!raw) return;
 var reqUrl = pm.variables.replaceIn(pm.request.url.toString());
 var bridgeBase = pm.variables.replaceIn('{{bridge_base_url}}');
-if (reqUrl.indexOf(bridgeBase) !== 0) return; // sign only Bridge Partner API calls
+var sparBase = pm.variables.replaceIn('{{spar_base_url}}');
+// Sign BOTH Bridge and SPAR partner-API calls — both enforce partner signatures
+// (verified via Partner Manager). The Example Bank is not a partner API, so its
+// calls are never signed.
+if (reqUrl.indexOf(bridgeBase) !== 0 && reqUrl.indexOf(sparBase) !== 0) return;
 
 function canonical(o) {
   if (Array.isArray(o)) return '[' + o.map(canonical).join(',') + ']';
@@ -204,7 +258,17 @@ function canonical(o) {
   return JSON.stringify(o);
 }
 
-function doSign() {
+// eval(src) and the signing MUST share one scope: jsrsasign declares KJUR/KEYUTIL/
+// hextob64u with `var`, so under eval-in-a-function they are local to THIS function
+// (in newman, where they don't attach to a global window). Signing here keeps them
+// in scope. jsrsasign-all-min also reads browser globals (navigator/window) at load;
+// the Postman app has them, newman's Node sandbox does not — and setting them on the
+// realm global is not reliably visible to eval'd code — so PREPEND them to the source
+// as locals of this eval scope. Works in BOTH Postman and newman.
+function signWith(src) {
+  var shim = "var navigator={appName:'nodejs',userAgent:'nodejs',platform:'nodejs'};" +
+             "var window={};var self=window;\n";
+  eval(shim + src);
   var b64u = function (s) { return hextob64u(rstrtohex(s)); };
   var body = JSON.parse(pm.variables.replaceIn(raw));
   var key = KEYUTIL.getKey(pm.variables.get('signing_private_pem'));
@@ -218,13 +282,13 @@ function doSign() {
 }
 
 var cached = pm.collectionVariables.get('_jsrsasign_src');
-if (cached) { eval(cached); doSign(); return; }
+if (cached) { try { signWith(cached); } catch (e) { console.log('signing error:', e); } return; }
 return new Promise(function (resolve) {
   pm.sendRequest(pm.variables.get('jsrsasign_url'), function (err, res) {
     if (err || !res) { console.log('jsrsasign load failed; sending unsigned:', err); return resolve(); }
     var src = res.text();
     pm.collectionVariables.set('_jsrsasign_src', src);
-    try { eval(src); doSign(); } catch (e) { console.log('signing error:', e); }
+    try { signWith(src); } catch (e) { console.log('signing error:', e); }
     resolve();
   });
 });
@@ -248,7 +312,7 @@ F1 = {
             "GET",
             "{{bridge_base_url}}/ping",
             test="""
-pm.test('Bridge reachable (HTTP 200)', () => pm.response.code === 200);
+pm.test('Bridge reachable (HTTP 200)', () => pm.expect(pm.response.code).to.eql(200));
 console.log('Bridge ping: ' + pm.response.code);
 """,
         ),
@@ -257,7 +321,7 @@ console.log('Bridge ping: ' + pm.response.code);
             "GET",
             "{{example_bank_base_url}}/ping",
             test="""
-pm.test('Example Bank reachable (HTTP 200)', () => pm.response.code === 200);
+pm.test('Example Bank reachable (HTTP 200)', () => pm.expect(pm.response.code).to.eql(200));
 console.log('Example Bank ping: ' + pm.response.code);
 """,
         ),
@@ -272,9 +336,9 @@ console.log('Example Bank ping: ' + pm.response.code);
   "total_funds_needed": {{total_amount}}
 }""",
             test="""
-pm.test('check_funds returned 200', () => pm.response.code === 200);
+pm.test('check_funds returned 200', () => pm.expect(pm.response.code).to.eql(200));
 const j = pm.response.json() || {};
-pm.test('Treasury has enough for the whole batch', () => j.has_sufficient_funds === true);
+pm.test('Treasury has enough for the whole batch', () => pm.expect(j.has_sufficient_funds).to.eql(true));
 console.log('Treasury ' + pm.environment.get('treasury_account') +
             ' sufficient for ' + pm.environment.get('total_amount') +
             '? -> ' + j.has_sufficient_funds);
@@ -302,10 +366,7 @@ pm.collectionVariables.set('disbursements_accum', '[]');
 // short or reconciliation fails to parse. 'D' + 8 hex + 2-digit index <= 16.
 pm.collectionVariables.set('run_token',
   (Date.now() % 0x100000000).toString(16).padStart(8, '0'));
-// Default the schedule date to today if the implementer left it blank.
-if (!pm.environment.get('schedule_date')) {
-  pm.environment.set('schedule_date', new Date().toISOString().slice(0, 10));
-}
+// (schedule_date is defaulted in the collection pre-request, before signing.)
 console.log('Campaign run_id = ' + run + ' | schedule_date = ' +
             pm.environment.get('schedule_date'));
 """
@@ -341,13 +402,13 @@ ENV_BODY = (
 )
 
 ENV_TEST = """
-pm.test('Envelope accepted (HTTP 200)', () => pm.response.code === 200);
+pm.test('Envelope accepted (HTTP 200)', () => pm.expect(pm.response.code).to.eql(200));
 const j = pm.response.json() || {};
 const st = j.response_header && j.response_header.response_status;
-pm.test('response_status SUCCESS', () => st === 'SUCCESS');
+pm.test('response_status SUCCESS', () => pm.expect(st, JSON.stringify(j).slice(0, 300)).to.eql('SUCCESS'));
 const p = j.response_body && j.response_body.response_payload;
 const eid = Array.isArray(p) && p.length ? p[0].id : null;
-pm.test('envelope id returned', () => !!eid);
+pm.test('envelope id returned', () => pm.expect(eid, 'no envelope id in response').to.be.ok);
 pm.collectionVariables.set('envelope_id', eid || '');
 console.log('envelope_id = ' + eid + '  | declared ' +
             pm.environment.get('num_disbursements') + ' disbursements, total ' +
@@ -379,36 +440,9 @@ F2 = {
 
 # =========================================================================== #
 # Folder 3 — Seed SPAR + create disbursements (DATA-DRIVEN with the CSV)
+# link_request_json is built in the collection pre-request (before signing), so
+# this folder has no item pre-request.
 # =========================================================================== #
-LINK_PRE = """
-// Build the SPAR link_request from the current CSV row. For the
-// 'missing_from_spar' scenario we send an EMPTY array, so the beneficiary is
-// deliberately left unmapped (this is the 'ID missing from SPAR' case).
-const sc = (pm.iterationData.get('scenario') || 'happy');
-const bid = pm.iterationData.get('beneficiary_id');
-const sid = Number(pm.environment.get('spar_strategy_id'));
-let arr = [];
-if (sc !== 'missing_from_spar') {
-  arr = [{
-    reference_id: pm.variables.replaceIn('{{run_id}}') + '_REF_' + bid,
-    timestamp: new Date().toISOString(),
-    id: bid,
-    fa: {
-      strategy_id: sid,
-      fa_type: 'BANK',
-      bank_name: (pm.iterationData.get('bank_code') || '') + ' Bank',
-      bank_code: pm.iterationData.get('bank_code'),
-      branch_name: 'Branch ' + (pm.iterationData.get('branch_code') || ''),
-      branch_code: pm.iterationData.get('branch_code'),
-      account_number: pm.iterationData.get('account_number')
-    },
-    name: pm.iterationData.get('beneficiary_name'),
-    additional_info: [{ strategy_id: sid }],
-    locale: 'en'
-  }];
-}
-pm.variables.set('link_request_json', JSON.stringify(arr));
-"""
 
 LINK_BODY = (
     "{\n"
@@ -432,10 +466,10 @@ if (sc === 'missing_from_spar') {
   console.log('-> ' + bid + ': intentionally NOT linked (simulating beneficiary missing from SPAR)');
   pm.test(bid + ' left unmapped (missing_from_spar)', () => true);
 } else {
-  pm.test('SPAR link accepted (HTTP 200)', () => pm.response.code === 200);
+  pm.test('SPAR link accepted (HTTP 200)', () => pm.expect(pm.response.code).to.eql(200));
   const j = pm.response.json() || {};
   const st = j.response_header && j.response_header.response_status;
-  pm.test('SPAR response_status SUCCESS', () => st === 'SUCCESS');
+  pm.test('SPAR response_status SUCCESS', () => pm.expect(st, JSON.stringify(j).slice(0, 300)).to.eql('SUCCESS'));
   console.log('linked ' + bid + ' @ ' + pm.iterationData.get('bank_code'));
 }
 // 2) Accumulate THIS beneficiary's disbursement into the batch we will create
@@ -480,7 +514,8 @@ F3 = {
             "POST",
             "{{spar_base_url}}/link",
             body=LINK_BODY,
-            pre=LINK_PRE,
+            # link_request_json is built in the collection pre-request (before
+            # signing), so this item needs no pre-request script.
             test=LINK_TEST,
         ),
     ],
@@ -503,10 +538,10 @@ CREATE_BATCH_BODY = (
 )
 
 CREATE_BATCH_TEST = """
-pm.test('Batch accepted (HTTP 200)', () => pm.response.code === 200);
+pm.test('Batch accepted (HTTP 200)', () => pm.expect(pm.response.code).to.eql(200));
 const j = pm.response.json() || {};
 const st = j.response_header && j.response_header.response_status;
-pm.test('response_status SUCCESS', () => st === 'SUCCESS');
+pm.test('response_status SUCCESS', () => pm.expect(st, JSON.stringify(j).slice(0, 300)).to.eql('SUCCESS'));
 let n = 0;
 try { n = JSON.parse(pm.collectionVariables.get('disbursements_accum') || '[]').length; } catch (e) {}
 console.log('created ' + n + ' disbursements in ONE batch | batch_control_id = ' +
@@ -564,7 +599,7 @@ BATCH_ID_BODY = (
 )
 
 BATCH_TEST = """
-pm.test('batch control fetched (HTTP 200)', () => pm.response.code === 200);
+pm.test('batch control fetched (HTTP 200)', () => pm.expect(pm.response.code).to.eql(200));
 const j = pm.response.json() || {};
 const p = j.response_body && j.response_body.response_payload;
 if (p) {
@@ -574,7 +609,7 @@ if (p) {
 """
 
 ENVSTATUS_TEST = """
-pm.test('envelope status fetched (HTTP 200)', () => pm.response.code === 200);
+pm.test('envelope status fetched (HTTP 200)', () => pm.expect(pm.response.code).to.eql(200));
 const j = pm.response.json() || {};
 const p = j.response_body && j.response_body.response_payload;
 if (p) {
@@ -597,7 +632,7 @@ DISBSTATUS_BODY = (
 )
 
 DISBSTATUS_TEST = """
-pm.test('disbursement status fetched (HTTP 200)', () => pm.response.code === 200);
+pm.test('disbursement status fetched (HTTP 200)', () => pm.expect(pm.response.code).to.eql(200));
 const j = pm.response.json() || {};
 const p = j.response_body && j.response_body.response_payload;
 if (Array.isArray(p)) {
@@ -626,7 +661,7 @@ CHECK_CREDITED_BODY = """
 }"""
 
 CHECK_CREDITED_TEST = """
-pm.test('check_funds returned 200', () => pm.response.code === 200);
+pm.test('check_funds returned 200', () => pm.expect(pm.response.code).to.eql(200));
 const j = pm.response.json() || {};
 console.log('Successful beneficiary ' + pm.environment.get('sample_happy_account') +
             ' credited? -> ' + (j.has_sufficient_funds === true));
@@ -761,10 +796,12 @@ COLLECTION = {
             "(digital cash), for implementers who have installed G2P Bridge + "
             "SPAR + the Example Bank. Seed data comes from `beneficiaries.csv` "
             "(edit it; change the schedule date / amounts as you like).\n\n"
-            "Partner API requests are SIGNED by default (detached JWS in the "
-            "`Signature` header) with the committed TEST-ONLY key, matching the "
-            "trial Bridge's local crypto backend. Set `sign_requests=false` in the "
-            "environment to target an unsigned Bridge.\n\n"
+            "Partner API requests to BOTH the Bridge and SPAR are SIGNED by "
+            "default (detached JWS in the `Signature` header) with the committed "
+            "TEST-ONLY key; the trial enforces signature validation and verifies "
+            "the partner key (PARTNER_TRAINING) via the Partner Manager. Set "
+            "`sign_requests=false` in the environment to target an unsigned "
+            "deployment.\n\n"
             "Run the six folders in order. Folders 3 and 6 are DATA-DRIVEN: run "
             "them from the Collection Runner with `beneficiaries.csv` as the "
             "data file. Folder 5 is meant to be RE-RUN repeatedly while the "
