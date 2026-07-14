@@ -1,0 +1,135 @@
+name: Build & Publish
+
+# Replaces docker-build-*.yml + helm-publish.yml.
+#
+# One workflow, not several: a backend-only change must republish the chart, or
+# the newest chart keeps pointing at the previous image. The old per-image build
+# workflows and helm-publish had disjoint path filters, so that desync was
+# routine.
+#
+# This file declares only what THIS repo contains. All versioning/changelog
+# policy lives in openg2p-packaging behind @v1 -- see that repo's ci/README.md.
+
+# ---- IDENTICAL BOILERPLATE (do not customise per repo) ----------------------
+# The two inputs are for occasional changelog fixes only. For a normal run leave
+# the checkbox OFF and the text box EMPTY (it rebuilds/publishes the branch).
+on:
+  push:
+    branches: ["**"]
+    tags: ["**"]
+  workflow_dispatch:
+    inputs:
+      changelog_skip_ai:
+        description: 'Skip the AI summary — publish the changelog from commit messages only (use when AI is unavailable). Leave OFF for a normal run.'
+        type: boolean
+        default: false
+      changelog_regenerate:
+        description: 'Backfill the AI summary for a release that published without one: enter its frozen version e.g. 1.0.1 (not a develop version). Leave EMPTY for a normal run.'
+        type: string
+        default: ''
+
+jobs:
+  build-publish:
+    uses: openg2p/openg2p-packaging/.github/workflows/build-publish.yml@v1
+    with:
+      # --- IDENTICAL BOILERPLATE ---
+      changelog_skip_ai: ${{ inputs.changelog_skip_ai || false }}
+      changelog_regenerate: ${{ inputs.changelog_regenerate || '' }}
+      packaging-ref: v1
+
+      # --- PER-REPO DECLARATIONS ---
+      # One entry per Docker image. `pins` (per image) resolve a git-ref build-arg
+      # to a SHA for reproducible builds -- add it only to images whose Dockerfile
+      # declares that ARG. The Bridge APIs + celery build against fastapi-common
+      # `develop` (a branch); the bundled Example Bank pins fastapi-common `1.1`;
+      # celery also pins SPAR (`2.0`) for the mapper models. The sanity image has
+      # no git-ref ARG, so no pins.
+      images: |
+        [
+          {"name": "partner-api",
+           "repo": "openg2p/openg2p-bridge-partner-api",
+           "dockerfile": "docker/g2p-bridge-apis/partner-api/Dockerfile",
+           "pins": [
+             {"arg": "FASTAPI_COMMON_REF",
+              "repo": "https://github.com/openg2p/openg2p-fastapi-common",
+              "ref": "develop"}
+           ]},
+
+          {"name": "bene-portal-api",
+           "repo": "openg2p/openg2p-bridge-bene-portal-api",
+           "dockerfile": "docker/g2p-bridge-apis/beneportal-api/Dockerfile",
+           "pins": [
+             {"arg": "FASTAPI_COMMON_REF",
+              "repo": "https://github.com/openg2p/openg2p-fastapi-common",
+              "ref": "develop"}
+           ]},
+
+          {"name": "celery",
+           "repo": "openg2p/openg2p-bridge-celery",
+           "dockerfile": "docker/g2p-bridge-celery/Dockerfile",
+           "pins": [
+             {"arg": "FASTAPI_COMMON_REF",
+              "repo": "https://github.com/openg2p/openg2p-fastapi-common",
+              "ref": "develop"},
+             {"arg": "SPAR_REF",
+              "repo": "https://github.com/openg2p/openg2p-spar",
+              "ref": "2.0"}
+           ]},
+
+          {"name": "sanity",
+           "repo": "openg2p/openg2p-bridge-sanity",
+           "dockerfile": "docker/g2p-bridge-sanity/Dockerfile"},
+
+          {"name": "example-bank-api",
+           "repo": "openg2p/openg2p-bridge-example-bank-api",
+           "dockerfile": "example-bank/openg2p-example-bank-api/Dockerfile-git",
+           "context": "example-bank",
+           "pins": [
+             {"arg": "FASTAPI_COMMON_REF",
+              "repo": "https://github.com/openg2p/openg2p-fastapi-common",
+              "ref": "1.1"}
+           ]},
+
+          {"name": "example-bank-celery-beat-producers",
+           "repo": "openg2p/openg2p-bridge-example-bank-celery-beat-producers",
+           "dockerfile": "example-bank/openg2p-example-bank-celery-beat-producers/Dockerfile-git",
+           "context": "example-bank",
+           "pins": [
+             {"arg": "FASTAPI_COMMON_REF",
+              "repo": "https://github.com/openg2p/openg2p-fastapi-common",
+              "ref": "1.1"}
+           ]},
+
+          {"name": "example-bank-celery-workers",
+           "repo": "openg2p/openg2p-bridge-example-bank-celery-workers",
+           "dockerfile": "example-bank/openg2p-example-bank-celery-workers/Dockerfile-git",
+           "context": "example-bank",
+           "pins": [
+             {"arg": "FASTAPI_COMMON_REF",
+              "repo": "https://github.com/openg2p/openg2p-fastapi-common",
+              "ref": "1.1"}
+           ]}
+        ]
+
+      chart-path: deployment/charts/openg2p-bridge
+
+      # Every OpenG2P image tag the chart deploys. The celery image is deployed
+      # twice (beat producer + workers), so both paths are listed. Third-party
+      # images (redis, jbergknoff/postgresql-client) stay pinned in values.yaml.
+      chart-image-paths: |
+        [".g2pBridgeApi.image.tag",
+         ".openg2pG2pBridgeBenePortalApi.image.tag",
+         ".g2pBridgeCeleryBeatProducers.image.tag",
+         ".g2pBridgeCeleryWorkers.image.tag",
+         ".exampleBankApi.image.tag",
+         ".exampleBankCeleryBeat.image.tag",
+         ".exampleBankCeleryWorker.image.tag",
+         ".sanity.image.tag"]
+
+    # ---- IDENTICAL BOILERPLATE ----
+    secrets:
+      docker_hub_actor: ${{ secrets.docker_hub_actor }}
+      docker_hub_token: ${{ secrets.docker_hub_token }}
+      OPENG2P_BOT_GITHUB_PAT: ${{ secrets.OPENG2P_BOT_GITHUB_PAT }}
+      # Org-level secret; if unset the changelog still publishes human notes.
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
