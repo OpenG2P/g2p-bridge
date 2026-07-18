@@ -276,7 +276,7 @@ g2pBridgeApi:
     create: false
     name: ""
   image:
-    repository: openg2p/openg2p-bridge-partner-api
+    repository: registry.gitlab.com/openg2p/g2p-bridge/g2p-bridge/partner-api
     tag: "develop"
     pullPolicy: Always
   podSecurityContext:
@@ -408,7 +408,7 @@ openg2pG2pBridgeBenePortalApi:
     create: false
     name: ""
   image:
-    repository: openg2p/openg2p-bridge-bene-portal-api
+    repository: registry.gitlab.com/openg2p/g2p-bridge/g2p-bridge/bene-portal-api
     tag: "develop"
     pullPolicy: Always
   podSecurityContext:
@@ -520,7 +520,7 @@ g2pBridgeCeleryBeatProducers:
       args:
         - 'until nc -z {{ tpl .Values.global.redisInstallationName $ }} 6379; do echo "waiting for redis..."; sleep 3; done'
   image:
-    repository: openg2p/openg2p-bridge-celery
+    repository: registry.gitlab.com/openg2p/g2p-bridge/g2p-bridge/celery
     tag: "develop"
     pullPolicy: Always
 
@@ -606,7 +606,7 @@ g2pBridgeCeleryWorkers:
       args:
         - 'until nc -z {{ tpl .Values.global.redisInstallationName $ }} 6379; do echo "waiting for redis..."; sleep 3; done'
   image:
-    repository: openg2p/openg2p-bridge-celery
+    repository: registry.gitlab.com/openg2p/g2p-bridge/g2p-bridge/celery
     tag: "develop"
     pullPolicy: Always
 
@@ -879,7 +879,7 @@ exampleBankApi:
     create: true
     name: ""
   image:
-    repository: openg2p/openg2p-bridge-example-bank-api
+    repository: registry.gitlab.com/openg2p/g2p-bridge/g2p-bridge/example-bank-api
     tag: "develop"
     pullPolicy: Always
   podSecurityContext:
@@ -997,7 +997,7 @@ exampleBankCeleryBeat:
     create: true
     name: ""
   image:
-    repository: openg2p/openg2p-bridge-example-bank-celery-beat-producers
+    repository: registry.gitlab.com/openg2p/g2p-bridge/g2p-bridge/example-bank-celery-beat-producers
     tag: "develop"
     pullPolicy: Always
   podSecurityContext:
@@ -1078,7 +1078,7 @@ exampleBankCeleryWorker:
     create: true
     name: ""
   image:
-    repository: openg2p/openg2p-bridge-example-bank-celery-workers
+    repository: registry.gitlab.com/openg2p/g2p-bridge/g2p-bridge/example-bank-celery-workers
     tag: "develop"
     pullPolicy: Always
   podSecurityContext:
@@ -1139,7 +1139,7 @@ sanity:
   enabled: true
 
   image:
-    repository: openg2p/openg2p-bridge-sanity
+    repository: registry.gitlab.com/openg2p/g2p-bridge/g2p-bridge/sanity
     tag: "develop"
     pullPolicy: Always
 
