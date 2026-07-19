@@ -1,5 +1,6 @@
 # Build context for the api/celery images is the repo root; keep it lean.
-# (Only core/, extensions/ and docker/g2p-bridge-celery/run_celery.py are needed.)
+# (Only core/ and docker/g2p-bridge-celery/run_celery.py are needed — the connectors
+# are pulled from g2p-bridge-connectors by git ref, not from this build context.)
 .git
 .github
 **/__pycache__

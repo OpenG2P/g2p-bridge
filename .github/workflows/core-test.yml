@@ -43,16 +43,18 @@ jobs:
           python -m pip install --upgrade pip
           # External libs (fastapi-common family, spar-models) from git.
           python -m pip install -r test-requirements.txt
-          # In-repo libraries — models + the extensions the celery modules depend
-          # on — must be installed BEFORE the celery modules (none are on PyPI).
+          # Core models first (none are on PyPI), then the CONNECTORS — which now
+          # live in the separate g2p-bridge-connectors repo and are pulled by git
+          # ref. The celery modules import them, so they must be present to run the
+          # celery-workers tests. Override the ref with G2P_BRIDGE_CONNECTORS_REF.
           python -m pip install -e ./models
           python -m pip install \
-            -e ../extensions/bank-connectors \
-            -e ../extensions/geo-resolver \
-            -e ../extensions/notification-connectors \
-            -e ../extensions/agency-allocator \
-            -e ../extensions/warehouse-allocator \
-            -e ../extensions/mapper-connectors
+            "git+https://gitlab.com/openg2p/g2p-bridge/g2p-bridge-connectors@${G2P_BRIDGE_CONNECTORS_REF:-develop}#subdirectory=bank-connectors" \
+            "git+https://gitlab.com/openg2p/g2p-bridge/g2p-bridge-connectors@${G2P_BRIDGE_CONNECTORS_REF:-develop}#subdirectory=geo-resolver" \
+            "git+https://gitlab.com/openg2p/g2p-bridge/g2p-bridge-connectors@${G2P_BRIDGE_CONNECTORS_REF:-develop}#subdirectory=notification-connectors" \
+            "git+https://gitlab.com/openg2p/g2p-bridge/g2p-bridge-connectors@${G2P_BRIDGE_CONNECTORS_REF:-develop}#subdirectory=agency-allocator" \
+            "git+https://gitlab.com/openg2p/g2p-bridge/g2p-bridge-connectors@${G2P_BRIDGE_CONNECTORS_REF:-develop}#subdirectory=warehouse-allocator" \
+            "git+https://gitlab.com/openg2p/g2p-bridge/g2p-bridge-connectors@${G2P_BRIDGE_CONNECTORS_REF:-develop}#subdirectory=mapper-connectors"
           python -m pip install -e ./partner-api
           python -m pip install -e ./celery-beat-producers
           python -m pip install -e ./celery-workers

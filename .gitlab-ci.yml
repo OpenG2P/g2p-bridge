@@ -52,6 +52,11 @@ variables:
             "arg": "SPAR_REF",
             "repo": "https://github.com/openg2p/openg2p-spar",
             "ref": "2.0"
+          },
+          {
+            "arg": "G2P_BRIDGE_CONNECTORS_REF",
+            "repo": "https://gitlab.com/openg2p/g2p-bridge/g2p-bridge-connectors",
+            "ref": "develop"
           }
         ]
       },
