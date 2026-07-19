@@ -51,7 +51,7 @@ variables:
           {
             "arg": "SPAR_REF",
             "repo": "https://gitlab.com/openg2p/spar/spar",
-            "ref": "develop"
+            "ref": "1.1.0"
           },
           {
             "arg": "G2P_BRIDGE_CONNECTORS_REF",
@@ -72,7 +72,7 @@ variables:
           {
             "arg": "FASTAPI_COMMON_REF",
             "repo": "https://github.com/openg2p/openg2p-fastapi-common",
-            "ref": "1.1"
+            "ref": "develop"
           }
         ]
       },
@@ -84,7 +84,7 @@ variables:
           {
             "arg": "FASTAPI_COMMON_REF",
             "repo": "https://github.com/openg2p/openg2p-fastapi-common",
-            "ref": "1.1"
+            "ref": "develop"
           }
         ]
       },
@@ -96,7 +96,7 @@ variables:
           {
             "arg": "FASTAPI_COMMON_REF",
             "repo": "https://github.com/openg2p/openg2p-fastapi-common",
-            "ref": "1.1"
+            "ref": "develop"
           }
         ]
       }
