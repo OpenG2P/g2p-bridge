@@ -97,41 +97,20 @@ questions:
   show_if: exampleBank.enabled=true
 
 # ----------------------------- Keycloak -----------------------------
-- variable: keycloak-init.enabled
-  description: Create the g2p-bridge OIDC client. Only needed for the legacy Keymanager crypto backend — leave OFF for the default local backend (which needs no Keycloak).
-  type: boolean
-  default: false
-  label: Create Keycloak Client (Keymanager only)
-  group: Keycloak
 - variable: global.keycloakBaseUrl
   description: Keycloak Base Url used in all components
   type: string
   label: Keycloak Base URL
   group: Keycloak
 - variable: global.keycloakRealm
-  description: Keycloak realm in which the Bridge client lives / is created
+  description: Keycloak realm used by the components
   type: string
   label: Keycloak Realm
   group: Keycloak
-- variable: global.g2pBridgeAuthClientId
-  description: OIDC Client ID
-  type: string
-  label: OIDC Client ID
-  group: Keycloak
-- variable: global.g2pBridgeAuthClientSecret
-  description: OIDC client Kubernetes secret name
-  type: string
-  label: OIDC Client Secret Name
-  group: Keycloak
-- variable: global.g2pBridgeAuthClientSecretKey
-  description: Key containing OIDC client password
-  type: string
-  label: OIDC Client Secret Key
-  group: Keycloak
 
 # ------------------------ Partner Signatures ------------------------
-# The Bridge verifies and signs partner requests in-process (local JWS, RS256) —
-# no MOSIP Keymanager. Onboard partner certs under "Partner Certs" / values.
+# The Bridge verifies and signs partner requests in-process (local JWS, RS256).
+# Onboard partner certs under "Partner Certs" / values.
 - variable: global.g2pBridgeSignatureValidationEnabled
   description: Verify a partner JWS signature on every Partner API request (partners must be onboarded first via Partner Certs)
   type: boolean

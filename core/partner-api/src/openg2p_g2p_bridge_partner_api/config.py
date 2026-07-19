@@ -25,7 +25,6 @@ class Settings(BaseSettings):
         "text/plain",
     ]
 
-    keymanager_sign_app_id: str = "OPENG2P_BRIDGE"
     signature_validation_enabled: bool = False
 
     # Inbound partner-signature verification fetches partner public keys from the

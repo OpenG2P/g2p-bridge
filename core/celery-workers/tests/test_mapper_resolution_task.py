@@ -190,7 +190,6 @@ def mock_session_maker():
 def mock_resolve_helper():
     # Use MagicMock for the helper and set async methods with AsyncMock
     mock_helper = MagicMock()
-    mock_helper.create_jwt_token = AsyncMock(return_value="mocked_jwt_token")
     mock_helper.construct_single_resolve_request.return_value = MagicMock()
     mock_helper.construct_resolve_request.return_value = MagicMock(
         dict=MagicMock(return_value={"key": "value"})  # Mock the dict method

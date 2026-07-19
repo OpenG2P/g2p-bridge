@@ -90,9 +90,6 @@ spec:
               value: {{ $s.failOnError | quote }}
             - name: SANITY_BENE_PORTAL_ENABLED
               value: {{ $s.benePortalEnabled | quote }}
-            # If inbound signature validation is on, the write tests self-skip.
-            - name: SANITY_KEYMANAGER_AUTH_ENABLED
-              value: {{ .Values.global.g2pBridgeKeymanagerAuthEnabled | quote }}
             {{- if $signing }}
             # Local backend trial: sign Partner API requests as the test partner
             # with the bundled DEMO .p12 (independent of the Bridge's outbound key).

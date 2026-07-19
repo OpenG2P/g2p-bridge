@@ -10,12 +10,10 @@
 # What it does, in order:
 #   1. helm uninstall <release>            (bridge + bundled example-bank
 #                                           workloads, services, helm-owned
-#                                           secrets & configmaps, the keycloak
-#                                           client K8s secret, etc.)
+#                                           secrets & configmaps, etc.)
 #   2. Delete leftover Jobs + their Pods   (helm hook / subchart jobs like
-#                                           postgres-init and keycloak-init keep
-#                                           themselves around via
-#                                           hook-delete-policy: before-hook-creation)
+#                                           postgres-init keep themselves around
+#                                           via hook-delete-policy: before-hook-creation)
 #   3. Sweep leftover Secrets/ConfigMaps   (label: app.kubernetes.io/instance)
 #   4. Drop Postgres databases + roles     (via `kubectl exec` into
 #                                           commons-postgresql-0)
@@ -291,7 +289,7 @@ else
 fi
 
 # ========== STEP 2: delete leftover Jobs (and their Pods) ==========
-# Subchart hook Jobs (postgres-init, keycloak-init) are created with
+# Subchart hook Jobs (postgres-init) are created with
 # `helm.sh/hook-delete-policy: before-hook-creation`, so they are NOT cleaned
 # up by `helm uninstall`. We delete them explicitly here — BEFORE dropping the
 # DBs, so their Pods close their Postgres connections cleanly.
@@ -397,10 +395,6 @@ _green "==> Done."
 if [[ "$DRY_RUN" == true ]]; then
   _yellow "    (dry-run — nothing was actually changed)"
 fi
-_yellow "Note: the Keycloak realm/client (clientId 'g2p-bridge') is left intact —"
-_yellow "      it lives in Keycloak, not in this namespace. keycloak-init is"
-_yellow "      idempotent, so reinstalling reuses it."
-echo
 _green "Test data removed by this run:"
 _green "  - Sanity results PVC ($RELEASE-sanity-results) and its PV"
 _green "  - ALL rows in $BRIDGE_DB (incl. TEST_SANITY_* disbursements/envelopes)"

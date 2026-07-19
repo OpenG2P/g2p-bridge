@@ -70,8 +70,6 @@ class Config:
     disbursement_cycle_id: int = 1
     disbursement_frequency: str = "Monthly"
 
-    keymanager_auth_enabled: bool = False
-
     # Partner API request signing (local crypto backend). When sign_requests=true
     # the suite signs every Bridge Partner API request with the .p12 below — set by
     # the chart in the local-backend trial. Leave false against an unsigned Bridge.

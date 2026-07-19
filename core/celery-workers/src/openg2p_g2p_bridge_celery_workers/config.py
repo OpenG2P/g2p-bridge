@@ -36,16 +36,6 @@ class Settings(BaseSettings):
     mapper_request_jwt_enabled: bool = True
     mapper_request_sender_id: str = "openg2p-g2p-bridge"
 
-    sign_key_keymanager_app_id: str = "G2PBRIDGE"
-    sign_key_keymanager_ref_id: str = ""
-
-    keymanager_api_timeout: int = 10
-    keymanager_api_base_url: str = ""
-    oauth_enabled: bool = True
-    oauth_url: str = ""
-    oauth_client_id: str = "openg2p-g2p-bridge"
-    oauth_client_secret: str = ""
-
     agency_allocation_max_attempts: int = 3
     warehouse_allocation_max_attempts: int = 3
     geo_resolution_max_attempts: int = 3
