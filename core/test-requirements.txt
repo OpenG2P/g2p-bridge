@@ -1,9 +1,9 @@
 pytest-cov
 pytest-asyncio
 # External OpenG2P libs — kept in sync with the Docker images (FASTAPI_COMMON_REF
-# develop, SPAR_REF 2.0). Not on PyPI, so installed from git.
+# develop, SPAR_REF develop). Not on PyPI, so installed from git.
 git+https://github.com/openg2p/openg2p-fastapi-common@develop#subdirectory=openg2p-fastapi-common
 git+https://github.com/openg2p/openg2p-fastapi-common@develop#subdirectory=openg2p-fastapi-auth-models
 git+https://github.com/openg2p/openg2p-fastapi-common@develop#subdirectory=openg2p-fastapi-partner-auth
 git+https://github.com/openg2p/openg2p-fastapi-common@develop#subdirectory=openg2p-fastapi-auth
-git+https://github.com/openg2p/openg2p-spar@2.0#subdirectory=openg2p-spar-models
+git+https://gitlab.com/openg2p/spar/spar@develop#subdirectory=core/models

@@ -7,7 +7,7 @@ FROM python:3.12.11-alpine3.22
 # the other git dependencies. openg2p-spar-models is a transitive dep of the
 # reference mapper connector.
 ARG FASTAPI_COMMON_REF=develop
-ARG SPAR_REF=2.0
+ARG SPAR_REF=develop
 ARG G2P_BRIDGE_CONNECTORS_REF=develop
 
 RUN apk add --no-cache --virtual .build-deps gcc libc-dev linux-headers make \
@@ -22,7 +22,7 @@ RUN pip install --upgrade pip setuptools && \
         "git+https://github.com/openg2p/openg2p-fastapi-common@${FASTAPI_COMMON_REF}#subdirectory=openg2p-fastapi-auth-models" \
         "git+https://github.com/openg2p/openg2p-fastapi-common@${FASTAPI_COMMON_REF}#subdirectory=openg2p-fastapi-auth" \
         "git+https://github.com/openg2p/openg2p-fastapi-common@${FASTAPI_COMMON_REF}#subdirectory=openg2p-fastapi-partner-auth" \
-        "git+https://github.com/openg2p/openg2p-spar@${SPAR_REF}#subdirectory=openg2p-spar-models"
+        "git+https://gitlab.com/openg2p/spar/spar@${SPAR_REF}#subdirectory=core/models"
 
 # Core (local): models + both celery roles, so the single image can run as worker
 # or beat (selected at runtime via env vars). Install models first so the connector
