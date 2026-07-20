@@ -24,7 +24,7 @@ variables:
           {
             "arg": "FASTAPI_COMMON_REF",
             "repo": "https://github.com/openg2p/openg2p-fastapi-common",
-            "ref": "dd7de09"
+            "ref": "develop"
           }
         ]
       },
@@ -35,7 +35,7 @@ variables:
           {
             "arg": "FASTAPI_COMMON_REF",
             "repo": "https://github.com/openg2p/openg2p-fastapi-common",
-            "ref": "dd7de09"
+            "ref": "develop"
           }
         ]
       },
@@ -46,7 +46,7 @@ variables:
           {
             "arg": "FASTAPI_COMMON_REF",
             "repo": "https://github.com/openg2p/openg2p-fastapi-common",
-            "ref": "dd7de09"
+            "ref": "develop"
           },
           {
             "arg": "SPAR_REF",
@@ -56,7 +56,7 @@ variables:
           {
             "arg": "G2P_BRIDGE_CONNECTORS_REF",
             "repo": "https://gitlab.com/openg2p/g2p-bridge/g2p-bridge-connectors",
-            "ref": "1.2.1"
+            "ref": "develop"
           }
         ]
       },
@@ -72,7 +72,7 @@ variables:
           {
             "arg": "FASTAPI_COMMON_REF",
             "repo": "https://github.com/openg2p/openg2p-fastapi-common",
-            "ref": "dd7de09"
+            "ref": "develop"
           }
         ]
       },
@@ -84,7 +84,7 @@ variables:
           {
             "arg": "FASTAPI_COMMON_REF",
             "repo": "https://github.com/openg2p/openg2p-fastapi-common",
-            "ref": "dd7de09"
+            "ref": "develop"
           }
         ]
       },
@@ -96,7 +96,7 @@ variables:
           {
             "arg": "FASTAPI_COMMON_REF",
             "repo": "https://github.com/openg2p/openg2p-fastapi-common",
-            "ref": "dd7de09"
+            "ref": "develop"
           }
         ]
       }
