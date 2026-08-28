@@ -1,0 +1,133 @@
+name: Build & Publish
+
+# Thin caller: all versioning/build/publish logic lives in
+# openg2p/openg2p-packaging@v1. This file declares only what THIS repo contains.
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["**"]
+  workflow_dispatch:
+    inputs:
+      changelog_skip_ai:
+        description: 'Skip the AI summary — publish the changelog from commit messages only (use when AI is unavailable). Leave OFF for a normal run.'
+        type: boolean
+        default: false
+      changelog_regenerate:
+        description: 'Backfill the AI summary for a release that published without one: enter its release version e.g. 1.0.1 (a bare N.N.N, not a develop version). Leave EMPTY for a normal run.'
+        type: string
+        default: ''
+
+jobs:
+  build-publish:
+    uses: openg2p/openg2p-packaging/.github/workflows/build-publish.yml@v1
+    with:
+      changelog_skip_ai: ${{ inputs.changelog_skip_ai || false }}
+      changelog_regenerate: ${{ inputs.changelog_regenerate || '' }}
+
+      images: |
+        [
+          {
+            "name": "partner-api",
+            "repo": "openg2p/openg2p-bridge-partner-api",
+            "dockerfile": "docker/g2p-bridge-apis/partner-api/Dockerfile",
+            "pins": [
+              {
+                "arg": "FASTAPI_COMMON_REF",
+                "repo": "https://github.com/openg2p/openg2p-fastapi-common",
+                "ref": "develop"
+              }
+            ]
+          },
+          {
+            "name": "bene-portal-api",
+            "repo": "openg2p/openg2p-bridge-bene-portal-api",
+            "dockerfile": "docker/g2p-bridge-apis/beneportal-api/Dockerfile",
+            "pins": [
+              {
+                "arg": "FASTAPI_COMMON_REF",
+                "repo": "https://github.com/openg2p/openg2p-fastapi-common",
+                "ref": "develop"
+              }
+            ]
+          },
+          {
+            "name": "celery",
+            "repo": "openg2p/openg2p-bridge-celery",
+            "dockerfile": "docker/g2p-bridge-celery/Dockerfile",
+            "pins": [
+              {
+                "arg": "FASTAPI_COMMON_REF",
+                "repo": "https://github.com/openg2p/openg2p-fastapi-common",
+                "ref": "develop"
+              },
+              {
+                "arg": "SPAR_REF",
+                "repo": "https://github.com/openg2p/spar",
+                "ref": "1.1.0"
+              },
+              {
+                "arg": "G2P_BRIDGE_CONNECTORS_REF",
+                "repo": "https://github.com/openg2p/g2p-bridge-connectors",
+                "ref": "develop"
+              }
+            ]
+          },
+          {
+            "name": "sanity",
+            "repo": "openg2p/openg2p-bridge-sanity",
+            "dockerfile": "docker/g2p-bridge-sanity/Dockerfile"
+          },
+          {
+            "name": "example-bank-api",
+            "repo": "openg2p/openg2p-bridge-example-bank-api",
+            "dockerfile": "example-bank/openg2p-example-bank-api/Dockerfile-git",
+            "context": "example-bank",
+            "pins": [
+              {
+                "arg": "FASTAPI_COMMON_REF",
+                "repo": "https://github.com/openg2p/openg2p-fastapi-common",
+                "ref": "develop"
+              }
+            ]
+          },
+          {
+            "name": "example-bank-celery-beat-producers",
+            "repo": "openg2p/openg2p-bridge-example-bank-celery-beat-producers",
+            "dockerfile": "example-bank/openg2p-example-bank-celery-beat-producers/Dockerfile-git",
+            "context": "example-bank",
+            "pins": [
+              {
+                "arg": "FASTAPI_COMMON_REF",
+                "repo": "https://github.com/openg2p/openg2p-fastapi-common",
+                "ref": "develop"
+              }
+            ]
+          },
+          {
+            "name": "example-bank-celery-workers",
+            "repo": "openg2p/openg2p-bridge-example-bank-celery-workers",
+            "dockerfile": "example-bank/openg2p-example-bank-celery-workers/Dockerfile-git",
+            "context": "example-bank",
+            "pins": [
+              {
+                "arg": "FASTAPI_COMMON_REF",
+                "repo": "https://github.com/openg2p/openg2p-fastapi-common",
+                "ref": "develop"
+              }
+            ]
+          }
+        ]
+
+      chart-path: deployment/charts/openg2p-bridge
+
+      chart-image-paths: |
+        [".g2pBridgeApi.image.tag",".openg2pG2pBridgeBenePortalApi.image.tag",".g2pBridgeCeleryBeatProducers.image.tag",".g2pBridgeCeleryWorkers.image.tag",".exampleBankApi.image.tag",".exampleBankCeleryBeat.image.tag",".exampleBankCeleryWorker.image.tag",".sanity.image.tag"]
+
+      packaging-ref: v1
+
+    secrets:
+      docker_hub_actor: ${{ secrets.docker_hub_actor }}
+      docker_hub_token: ${{ secrets.docker_hub_token }}
+      OPENG2P_BOT_GITHUB_PAT: ${{ secrets.OPENG2P_BOT_GITHUB_PAT }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}

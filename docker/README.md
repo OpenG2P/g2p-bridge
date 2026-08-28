@@ -15,7 +15,7 @@ Dockerfiles for the G2P Bridge service images.
 The images install the g2p-bridge **core** code (models, APIs, celery roles)
 **from this repo's local source**. The **connectors** are no longer in this repo —
 the Celery image pulls the reference connectors from
-[`g2p-bridge-connectors`](https://gitlab.com/openg2p/g2p-bridge/g2p-bridge-connectors)
+[`g2p-bridge-connectors`](https://github.com/OpenG2P/g2p-bridge-connectors)
 by git ref (`G2P_BRIDGE_CONNECTORS_REF`, default `develop`), the same way it pulls
 the other OpenG2P git dependencies. The build context is the repo root
 (`example-bank` builds use the `example-bank/` folder).

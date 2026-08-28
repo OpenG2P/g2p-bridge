@@ -22,7 +22,7 @@ RUN pip install --upgrade pip setuptools && \
         "git+https://github.com/openg2p/openg2p-fastapi-common@${FASTAPI_COMMON_REF}#subdirectory=openg2p-fastapi-auth-models" \
         "git+https://github.com/openg2p/openg2p-fastapi-common@${FASTAPI_COMMON_REF}#subdirectory=openg2p-fastapi-auth" \
         "git+https://github.com/openg2p/openg2p-fastapi-common@${FASTAPI_COMMON_REF}#subdirectory=openg2p-fastapi-partner-auth" \
-        "git+https://gitlab.com/openg2p/spar/spar@${SPAR_REF}#subdirectory=core/models"
+        "git+https://github.com/openg2p/spar@${SPAR_REF}#subdirectory=core/models"
 
 # Core (local): models + both celery roles, so the single image can run as worker
 # or beat (selected at runtime via env vars). Install models first so the connector
@@ -38,12 +38,12 @@ RUN pip install --no-cache-dir /src/models
 # package, and select it via config (G2P_BRIDGE_<CONNECTOR>_CONNECTORS_IMPL[S]) — no
 # fork of core or of this build is needed.
 RUN pip install --no-cache-dir \
-        "git+https://gitlab.com/openg2p/g2p-bridge/g2p-bridge-connectors@${G2P_BRIDGE_CONNECTORS_REF}#subdirectory=bank-connectors" \
-        "git+https://gitlab.com/openg2p/g2p-bridge/g2p-bridge-connectors@${G2P_BRIDGE_CONNECTORS_REF}#subdirectory=geo-resolver" \
-        "git+https://gitlab.com/openg2p/g2p-bridge/g2p-bridge-connectors@${G2P_BRIDGE_CONNECTORS_REF}#subdirectory=notification-connectors" \
-        "git+https://gitlab.com/openg2p/g2p-bridge/g2p-bridge-connectors@${G2P_BRIDGE_CONNECTORS_REF}#subdirectory=agency-allocator" \
-        "git+https://gitlab.com/openg2p/g2p-bridge/g2p-bridge-connectors@${G2P_BRIDGE_CONNECTORS_REF}#subdirectory=warehouse-allocator" \
-        "git+https://gitlab.com/openg2p/g2p-bridge/g2p-bridge-connectors@${G2P_BRIDGE_CONNECTORS_REF}#subdirectory=mapper-connectors"
+        "git+https://github.com/openg2p/g2p-bridge-connectors@${G2P_BRIDGE_CONNECTORS_REF}#subdirectory=bank-connectors" \
+        "git+https://github.com/openg2p/g2p-bridge-connectors@${G2P_BRIDGE_CONNECTORS_REF}#subdirectory=geo-resolver" \
+        "git+https://github.com/openg2p/g2p-bridge-connectors@${G2P_BRIDGE_CONNECTORS_REF}#subdirectory=notification-connectors" \
+        "git+https://github.com/openg2p/g2p-bridge-connectors@${G2P_BRIDGE_CONNECTORS_REF}#subdirectory=agency-allocator" \
+        "git+https://github.com/openg2p/g2p-bridge-connectors@${G2P_BRIDGE_CONNECTORS_REF}#subdirectory=warehouse-allocator" \
+        "git+https://github.com/openg2p/g2p-bridge-connectors@${G2P_BRIDGE_CONNECTORS_REF}#subdirectory=mapper-connectors"
 
 # Core celery roles (local).
 RUN pip install --no-cache-dir /src/celery-beat-producers /src/celery-workers

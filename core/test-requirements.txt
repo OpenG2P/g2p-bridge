@@ -6,4 +6,4 @@ git+https://github.com/openg2p/openg2p-fastapi-common@develop#subdirectory=openg
 git+https://github.com/openg2p/openg2p-fastapi-common@develop#subdirectory=openg2p-fastapi-auth-models
 git+https://github.com/openg2p/openg2p-fastapi-common@develop#subdirectory=openg2p-fastapi-partner-auth
 git+https://github.com/openg2p/openg2p-fastapi-common@develop#subdirectory=openg2p-fastapi-auth
-git+https://gitlab.com/openg2p/spar/spar@develop#subdirectory=core/models
+git+https://github.com/openg2p/spar@develop#subdirectory=core/models

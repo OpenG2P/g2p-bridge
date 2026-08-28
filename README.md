@@ -22,7 +22,7 @@ Docker image names, and Helm `Chart.yaml` names are intentionally left unchanged
 
 The pluggable **connectors** (bank, mapper, notification, geo, agency, warehouse)
 were moved out of this repo into
-[**`g2p-bridge-connectors`**](https://gitlab.com/openg2p/g2p-bridge/g2p-bridge-connectors).
+[**`g2p-bridge-connectors`**](https://github.com/OpenG2P/g2p-bridge-connectors).
 This core repo is the **standard, versioned platform** — it is consumed as a library
 (installed by git ref) and is not meant to be forked or modified by adopters. The
 Celery image pulls the reference connectors from `g2p-bridge-connectors` at build time
