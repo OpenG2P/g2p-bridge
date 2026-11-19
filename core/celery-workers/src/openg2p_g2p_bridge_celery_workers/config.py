@@ -67,5 +67,9 @@ class Settings(BaseSettings):
     # Each value: {sponsor_bank_code, program_account_number,
     #              program_account_type, program_account_branch_code}.
     sponsor_bank_configurations: dict = {}
+    account_validation_sponsor_account_number: str = ""
+    account_validation_sponsor_account_type: str = "BANK_ACCOUNT"
+    account_validation_sponsor_branch_code: str = ""
+    account_validation_sponsor_bank_code: str = ""
 
     suppress_notifications: bool = False

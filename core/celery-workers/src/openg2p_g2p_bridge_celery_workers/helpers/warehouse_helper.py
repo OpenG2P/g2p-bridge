@@ -96,6 +96,14 @@ class WarehouseHelper(BaseService):
     def retrieve_sponsor_bank_configuration_for_account_number(
         self, account_number: str
     ) -> SponsorBankConfiguration:
+        validation_account = getattr(_config, "account_validation_sponsor_account_number", "") or ""
+        if validation_account and account_number == validation_account:
+            return SponsorBankConfiguration(
+                program_account_number=validation_account,
+                program_account_type=getattr(_config, "account_validation_sponsor_account_type", None),
+                program_account_branch_code=getattr(_config, "account_validation_sponsor_branch_code", "") or "",
+                sponsor_bank_code=getattr(_config, "account_validation_sponsor_bank_code", "") or "",
+            )
         """
         Retrieve the sponsor bank configuration for the given account number.
 

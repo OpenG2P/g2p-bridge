@@ -20,6 +20,10 @@ class DisbursementPayload(BaseModel):
     beneficiary_id: Optional[str] = None
     beneficiary_name: Optional[str] = None
     disbursement_quantity: Optional[float] = None
+    bank_account_number: Optional[str] = None
+    bank_code: Optional[str] = None
+    branch_code: Optional[str] = None
+    account_type: Optional[str] = None
     compute_elements: Optional[dict] = None
     narrative: Optional[str] = None
     receipt_time_stamp: Optional[datetime.datetime] = None

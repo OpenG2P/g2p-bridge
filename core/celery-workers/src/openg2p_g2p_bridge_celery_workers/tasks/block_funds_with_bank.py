@@ -54,12 +54,18 @@ def block_funds_with_bank_worker(disbursement_envelope_id: str):
             )
             return
 
-        sponsor_bank_configuration: (
-            SponsorBankConfiguration
-        ) = WarehouseHelper.get_component().retrieve_sponsor_bank_configuration(
-            disbursement_envelope.benefit_program_id,
-            disbursement_envelope.benefit_code_id,
-        )
+        if getattr(disbursement_envelope, "envelope_type", None) == "ACCOUNT_VALIDATION":
+            sponsor_bank_configuration = SponsorBankConfiguration(
+                program_account_number=_config.account_validation_sponsor_account_number,
+                program_account_type=_config.account_validation_sponsor_account_type,
+                program_account_branch_code=_config.account_validation_sponsor_branch_code,
+                sponsor_bank_code=_config.account_validation_sponsor_bank_code,
+            )
+        else:
+            sponsor_bank_configuration = WarehouseHelper.get_component().retrieve_sponsor_bank_configuration(
+                disbursement_envelope.benefit_program_id,
+                disbursement_envelope.benefit_code_id,
+            )
         _logger.info(
             f"Sponsor bank configuration retrieved for: {sponsor_bank_configuration.sponsor_bank_code}"
         )

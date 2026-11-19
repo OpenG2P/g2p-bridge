@@ -15,7 +15,9 @@ from openg2p_g2p_bridge_models.models import (
     DisbursementBatchControl,
     DisbursementCancellationStatus,
     DisbursementEnvelope,
+    DisbursementResolutionFinancialAddress,
     EnvelopeControl,
+    MapperResolvedFaType,
 )
 from openg2p_g2p_bridge_models.models.common_enums import ProcessStatus
 from openg2p_g2p_bridge_models.schemas import (
@@ -98,6 +100,8 @@ class DisbursementService(BaseService):
                 session.add(disbursement_batch_control)
                 session.add_all(disbursements)
                 session.add(envelope_control)
+                if getattr(disbursement_envelope, "envelope_type", None) == "ACCOUNT_VALIDATION":
+                    session.add_all(self._resolution_rows(disbursement_request.request_body.request_payload, disbursement_batch_control.id))
 
                 # No need to create a separate bank disbursement status; this is now handled by DisbursementBatchControl
                 await session.commit()
@@ -105,7 +109,7 @@ class DisbursementService(BaseService):
                 return disbursement_request.request_body.request_payload
             except Exception as e:
                 _logger.error(f"Disbursement creation failed: {str(e)}")
-                session.rollback()
+                await session.rollback()
                 raise e
 
     async def update_envelope_control(self, disbursements, session):
@@ -180,8 +184,13 @@ class DisbursementService(BaseService):
         _logger.info("Constructing Disbursement Batch Control")
 
         id = disbursement_batch_control_id
-        # Determine statuses based on benefit_type
-        if disbursement_envelope.benefit_type == BenefitType.CASH_DIGITAL.value:
+        if getattr(disbursement_envelope, "envelope_type", None) == "ACCOUNT_VALIDATION":
+            fa_resolution_status = ProcessStatus.NOT_APPLICABLE.value
+            sponsor_bank_dispatch_status = ProcessStatus.PENDING.value
+            geo_resolutuon_status = ProcessStatus.NOT_APPLICABLE.value
+            warehouse_allocation_status = ProcessStatus.NOT_APPLICABLE.value
+            agency_allocation_status = ProcessStatus.NOT_APPLICABLE.value
+        elif disbursement_envelope.benefit_type == BenefitType.CASH_DIGITAL.value:
             fa_resolution_status = ProcessStatus.PENDING.value
             sponsor_bank_dispatch_status = ProcessStatus.NOT_APPLICABLE.value
             geo_resolutuon_status = ProcessStatus.NOT_APPLICABLE.value
@@ -229,6 +238,23 @@ class DisbursementService(BaseService):
         )
         _logger.info("Disbursement Batch Control Constructed!")
         return disbursement_batch_control
+
+    def _resolution_rows(self, payloads: List[DisbursementPayload], batch_control_id: str):
+        rows = []
+        for payload in payloads:
+            rows.append(
+                DisbursementResolutionFinancialAddress(
+                    disbursement_batch_control_id=batch_control_id,
+                    disbursement_id=payload.disbursement_id,
+                    beneficiary_id=payload.beneficiary_id,
+                    mapper_resolved_name=payload.beneficiary_name,
+                    mapper_resolved_fa_type=MapperResolvedFaType.BANK_ACCOUNT.value,
+                    bank_account_number=payload.bank_account_number,
+                    bank_code=payload.bank_code,
+                    branch_code=payload.branch_code,
+                )
+            )
+        return rows
 
     async def validate_disbursement_request(self, disbursement_payloads: List[DisbursementPayload]):
         _logger.info("Validating Disbursement Request")
@@ -327,8 +353,28 @@ class DisbursementService(BaseService):
                 G2PBridgeErrorCodes.TOTAL_DISBURSEMENT_QUANTITY_EXCEEDS_DECLARED,
                 disbursement_payloads,
             )
+        self._check_account_fields(disbursement_envelope, disbursement_payloads)
         _logger.info("Disbursement envelope validated!")
         return True
+
+    def _check_account_fields(self, envelope, payloads: List[DisbursementPayload]) -> None:
+        account_validation = getattr(envelope, "envelope_type", None) == "ACCOUNT_VALIDATION"
+        for payload in payloads:
+            payload.response_error_codes = payload.response_error_codes or []
+            supplied = any(
+                [payload.bank_account_number, payload.bank_code, payload.branch_code, payload.account_type]
+            )
+            if account_validation:
+                if not payload.bank_account_number or not payload.bank_code:
+                    payload.response_error_codes.append(G2PBridgeErrorCodes.ACCOUNT_FIELDS_REQUIRED.value)
+                if payload.disbursement_quantity and payload.disbursement_quantity > _config.account_validation_max_amount:
+                    payload.response_error_codes.append(G2PBridgeErrorCodes.AMOUNT_EXCEEDS_VALIDATION_CAP.value)
+                payload.narrative = "penny-drop"
+                payload.account_type = payload.account_type or "BANK_ACCOUNT"
+            elif supplied:
+                payload.response_error_codes.append(G2PBridgeErrorCodes.ACCOUNT_FIELDS_NOT_ALLOWED.value)
+        if any(payload.response_error_codes for payload in payloads):
+            raise DisbursementException(G2PBridgeErrorCodes.INVALID_DISBURSEMENT_PAYLOAD, payloads)
 
     async def construct_disbursement_error_response(
         self,

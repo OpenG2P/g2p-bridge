@@ -12,7 +12,7 @@ from openg2p_g2p_bridge_models.schemas import (
     DisbursementEnvelopeStatusRequest,
     DisbursementEnvelopeStatusResponse,
 )
-from openg2p_fastapi_partner_auth.jwt_signature_validator import JWTSignatureValidator
+from openg2p_fastapi_common.crypto import JWTSignatureValidator
 
 from ..config import Settings
 from ..services import DisbursementEnvelopeStatusService, RequestValidation

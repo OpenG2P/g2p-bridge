@@ -7,7 +7,7 @@ from .config import Settings
 _config = Settings.get_config()
 
 from openg2p_fastapi_common.app import Initializer as BaseInitializer
-from openg2p_fastapi_common.utils.crypto import build_crypto_helper
+from openg2p_fastapi_common.crypto import CryptoFactory
 from openg2p_g2p_bridge_models.models import (
     AccountStatement,
     AccountStatementLob,
@@ -24,7 +24,7 @@ from openg2p_g2p_bridge_models.models import (
     EnvelopeControl,
     NotificationLog,
 )
-from openg2p_fastapi_partner_auth.jwt_validation_helper import JWTValidationHelper
+from openg2p_fastapi_common.crypto import JWTValidationHelper
 
 from .controllers import (
     AccountStatementController,
@@ -54,10 +54,9 @@ class Initializer(BaseInitializer):
         AccountStatementService()
         DisbursementStatusService()
         DisbursementEnvelopeStatusService()
-        # Inbound partner-signature verification — fetches partner public keys from
-        # the Partner Manager (PM) service (crypto_backend=partner-mgmt). No local
-        # key store; see openg2p_fastapi_common.utils.crypto.PartnerMgmtKeyStore.
-        build_crypto_helper()
+        # Inbound partner-signature verification. crypto_backend=partner-mgmt
+        # loads the sender public key from Partner Manager.
+        CryptoFactory.get()
         JWTValidationHelper()
         DisbursementEnvelopeController().post_init()
         DisbursementController().post_init()

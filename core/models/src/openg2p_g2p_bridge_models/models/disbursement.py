@@ -34,14 +34,14 @@ class Disbursement(BaseORMModelWithId):
         default=DisbursementCancellationStatus.NOT_CANCELLED.value,
     )
     cancellation_time_stamp: Mapped[datetime] = mapped_column(DateTime, nullable=True, default=None)
-    disbursement_cycle_id: Mapped[int] = mapped_column(Integer)
+    disbursement_cycle_id: Mapped[int] = mapped_column(Integer, nullable=True)
     disbursement_batch_control_id: Mapped[str] = mapped_column(String)
 
 
 class DisbursementBatchControl(BaseORMModelWithId):
     __tablename__ = "disbursement_batch_control"
 
-    disbursement_cycle_id: Mapped[int] = mapped_column(Integer, index=True)
+    disbursement_cycle_id: Mapped[int] = mapped_column(Integer, index=True, nullable=True)
     disbursement_envelope_id: Mapped[str] = mapped_column(String, index=True)
     fa_resolution_status: Mapped[ProcessStatus] = mapped_column(String)
     fa_resolution_timestamp: Mapped[datetime] = mapped_column(DateTime, nullable=True, default=None)

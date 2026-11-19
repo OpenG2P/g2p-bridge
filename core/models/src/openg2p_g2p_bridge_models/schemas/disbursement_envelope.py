@@ -46,6 +46,7 @@ class DisbursementEnvelopePayload(BaseModel):
     receipt_time_stamp: Optional[datetime.datetime] = None
     cancellation_status: Optional[CancellationStatus] = None
     cancellation_timestamp: Optional[datetime.datetime] = None
+    envelope_type: Optional[str] = "DISBURSEMENT"
 
 
 class DisbursementEnvelopeRequestBody(G2PRequestBody):
@@ -113,6 +114,7 @@ class DisbursementReconRecords(BaseModel):
 class DisbursementStatusPayload(BaseModel):
     reconciliation_id: str
     disbursement_recon_records: Optional[DisbursementReconRecords] = None
+    reconciled_through: Optional[datetime.date] = None
 
 
 class DisbursementStatusRequestBody(G2PRequestBody):
