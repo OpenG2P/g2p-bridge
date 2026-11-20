@@ -6,7 +6,7 @@ FROM python:3.12.11-alpine3.22
 # g2p-bridge-connectors, and are pulled by git ref (default develop) the same way as
 # the other git dependencies. openg2p-spar-models is a transitive dep of the
 # reference mapper connector.
-ARG FASTAPI_COMMON_REF=develop
+ARG FASTAPI_COMMON_REF=1.3
 ARG SPAR_REF=develop
 ARG G2P_BRIDGE_CONNECTORS_REF=develop
 

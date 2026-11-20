@@ -49,8 +49,10 @@ class DisbursementEnvelopeService(BaseService):
         )
 
         async with session_maker() as session:
+            sender = disbursement_envelope_request.request_header.sender_app_mnemonic
             for disbursement_envelope_payload in disbursement_envelope_payloads:
                 try:
+                    self._prepare_account_validation(disbursement_envelope_payload, sender)
                     await self.validate_envelope_payload(disbursement_envelope_payload)
                 except DisbursementEnvelopeException as e:
                     raise e
@@ -214,6 +216,33 @@ class DisbursementEnvelopeService(BaseService):
         _logger.info("Disbursement envelope payload validated!")
         return True
 
+    def _prepare_account_validation(self, payload: DisbursementEnvelopePayload, sender: str) -> None:
+        if (payload.envelope_type or "DISBURSEMENT") != "ACCOUNT_VALIDATION":
+            return
+        allowed = _config.account_validation_allowed_clients or []
+        if allowed and sender not in allowed:
+            raise DisbursementEnvelopeException(G2PBridgeErrorCodes.CLIENT_NOT_ALLOWED)
+        payload.benefit_type = BenefitType.CASH_DIGITAL
+        payload.disbursement_frequency = DisbursementFrequency.OnDemand
+        payload.benefit_program_id = _config.account_validation_program_id or 1
+        payload.benefit_code_id = _config.account_validation_benefit_code_id or 1
+        if _config.account_validation_program_mnemonic:
+            if (
+                payload.benefit_program_mnemonic
+                and payload.benefit_program_mnemonic != _config.account_validation_program_mnemonic
+            ):
+                raise DisbursementEnvelopeException(G2PBridgeErrorCodes.INVALID_PROGRAM_MNEMONIC)
+            payload.benefit_program_mnemonic = _config.account_validation_program_mnemonic
+        if _config.account_validation_benefit_code_mnemonic:
+            payload.benefit_code_mnemonic = _config.account_validation_benefit_code_mnemonic
+        if not payload.cycle_code_mnemonic:
+            payload.cycle_code_mnemonic = "PENNY-DROP"
+        if not payload.target_registry:
+            payload.target_registry = sender or "spa-registry"
+        if payload.disbursement_schedule_date and payload.disbursement_schedule_date != datetime.now().date():
+            raise DisbursementEnvelopeException(G2PBridgeErrorCodes.INVALID_DISBURSEMENT_SCHEDULE_DATE)
+        payload.disbursement_schedule_date = datetime.now().date()
+
     # noinspection PyMethodMayBeStatic
     async def construct_disbursement_envelope(
         self, disbursement_envelope_payload: DisbursementEnvelopePayload
@@ -240,6 +269,7 @@ class DisbursementEnvelopeService(BaseService):
             receipt_time_stamp=datetime.now(),
             cancellation_status=CancellationStatus.NOT_CANCELLED.value,
             cancellation_timestamp=None,
+            envelope_type=disbursement_envelope_payload.envelope_type or "DISBURSEMENT",
         )
         _logger.info("Disbursement envelope constructed successfully")
         return disbursement_envelope

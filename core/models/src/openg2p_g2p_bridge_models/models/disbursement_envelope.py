@@ -42,6 +42,11 @@ class CancellationStatus(Enum):
     CANCELLED = "Cancelled"
 
 
+class EnvelopeType(Enum):
+    DISBURSEMENT = "DISBURSEMENT"
+    ACCOUNT_VALIDATION = "ACCOUNT_VALIDATION"
+
+
 class BenefitType(Enum):
     COMMODITY = "COMMODITY"
     SERVICE = "SERVICE"
@@ -60,7 +65,7 @@ class DisbursementEnvelope(BaseORMModelWithId):
     benefit_code_mnemonic: Mapped[str] = mapped_column(String)
     benefit_code_description: Mapped[str] = mapped_column(String, nullable=True)
     benefit_type: Mapped[BenefitType] = mapped_column(String)
-    disbursement_cycle_id: Mapped[int] = mapped_column(Integer)
+    disbursement_cycle_id: Mapped[int] = mapped_column(Integer, nullable=True)
     disbursement_frequency: Mapped[DisbursementFrequency] = mapped_column(String)
     cycle_code_mnemonic: Mapped[str] = mapped_column(String)
     number_of_beneficiaries: Mapped[int] = mapped_column(Integer)
@@ -73,6 +78,7 @@ class DisbursementEnvelope(BaseORMModelWithId):
         String, default=CancellationStatus.NOT_CANCELLED.value
     )
     cancellation_timestamp: Mapped[datetime] = mapped_column(DateTime(), nullable=True, default=None)
+    envelope_type: Mapped[str] = mapped_column(String, default="DISBURSEMENT")
 
 
 class EnvelopeControl(BaseORMModelWithId):

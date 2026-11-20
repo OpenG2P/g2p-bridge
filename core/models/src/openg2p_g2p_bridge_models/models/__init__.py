@@ -18,6 +18,7 @@ from .disbursement_envelope import (
     CancellationStatus,
     DisbursementEnvelope,
     DisbursementFrequency,
+    EnvelopeType,
     EnvelopeBatchStatusForCash,
     EnvelopeControl,
     FundsAvailableWithBankEnum,
